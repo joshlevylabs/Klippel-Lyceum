@@ -1,0 +1,131 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>LAPxv8</RootNamespace>
+    <AssemblyName>LAPxv8</AssemblyName>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!-- NuGet Package References -->
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Core" Version="3.7.401.2" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.412.2" />
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
+    <PackageReference Include="EPPlus" Version="7.5.3" />
+    <PackageReference Include="Flurl" Version="4.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="ScottPlot" Version="4.1.74" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="MethodBoundaryAspect.Fody" Version="2.0.150" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- References to DLLs -->
+  <ItemGroup>
+    <Reference Include="AudioPrecision.API">
+      <HintPath>..\..\..\..\..\..\Program Files\Audio Precision\APx500 8.0\API\AudioPrecision.API.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Windows.Forms.DataVisualization" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <!-- Compile Source Files -->
+  <ItemGroup>
+    <Compile Include="BaseForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="BaseForm.Designer.cs">
+      <DependentUpon>BaseForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Form1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Form1.Designer.cs">
+      <DependentUpon>Form1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAPLimitEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAPLimitEditor.Designer.cs">
+      <DependentUpon>FormAPLimitEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAudioPrecision8.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAudioPrecision8.Designer.cs">
+      <DependentUpon>FormAudioPrecision8.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormLyceumDataUpload.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormLyceumDataUpload.Designer.cs">
+      <DependentUpon>FormLyceumDataUpload.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormLyceumDataViewer.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormLyceumDataViewer.Designer.cs">
+      <DependentUpon>FormLyceumDataViewer.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormLyceumLimitImport.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormLyceumLimitImport.Designer.cs">
+      <DependentUpon>FormLyceumLimitImport.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormSessionManager.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSessionManager.Designer.cs">
+      <DependentUpon>FormSessionManager.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormSignalPathComparison.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSignalPathComparison.Designer.cs">
+      <DependentUpon>FormSignalPathComparison.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormTestResultsGrid.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormTestResultsGrid.Designer.cs">
+      <DependentUpon>FormTestResultsGrid.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <!-- Embedded Resources (Optional Explicit Inclusion) -->
+  <PropertyGroup>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs" />
+    <Compile Include="Properties\Settings.Designer.cs" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <!-- Content Files -->
+  <ItemGroup>
+    <Content Include="Resources\AudioPrecisionLogo.png" />
+    <Content Include="Resources\logoonly.ico" />
+    <Content Include="Resources\logoonly.png" />
+    <Content Include="Resources\LyceumLogo.png" />
+    <Content Include="Resources\modelImpedanceComponents.png" />
+  </ItemGroup>
+
+</Project>
