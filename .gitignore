@@ -1,1 +1,16 @@
 ﻿.vs/
+
+# Ignore build directories
+bin/
+obj/
+
+# Ignore other common artifacts
+*.user
+*.dll
+*.pdb
+*.cache
+*.exe
+*.json
+*.txt
+*.editorconfig
+*.resources
