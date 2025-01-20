@@ -45,4 +45,9 @@
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>
+  <ItemGroup>
+    <None Update=".gitnignore">
+      <SubType>Form</SubType>
+    </None>
+  </ItemGroup>
 </Project>
