@@ -1,4 +1,4 @@
-﻿using LAPxv8;
+using LAPxv8;
 using System;
 using AudioPrecision.API;
 using System.Windows.Forms;
