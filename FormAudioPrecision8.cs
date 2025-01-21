@@ -101,6 +101,12 @@ namespace LAPxv8
             sessionsMenuItem.Click += SessionsButton_Click;
             openMenu.DropDownItems.Add(sessionsMenuItem);
 
+            // Add "Test Results Grid" Menu Item
+            ToolStripMenuItem testResultsGridMenuItem = new ToolStripMenuItem("Test Results Grid");
+            testResultsGridMenuItem.Click += TestResultsGridMenuItem_Click;
+            openMenu.DropDownItems.Add(testResultsGridMenuItem);
+
+
             menuStrip.Items.Add(openMenu);
         }
         private void InitializeComponents()
@@ -372,7 +378,6 @@ namespace LAPxv8
             FillResultsTreeView(); // Populate the TreeView instead of the ListBox
             DisplayProperties();
         }
-
         private void LimitEditorButton_Click(object sender, EventArgs e)
         {
             if (checkedData == null || !checkedData.Any())
@@ -400,7 +405,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void DownloadLimitsJsonButton_Click(object sender, EventArgs e)
         {
             try
@@ -431,7 +435,6 @@ namespace LAPxv8
                 MessageBox.Show($"An error occurred: {ex.Message}");
             }
         }
-
         private void DownloadLimitsAsJson(string filePath)
         {
             // Extract the limit data from checkedData
@@ -538,7 +541,6 @@ namespace LAPxv8
                 MessageBox.Show("Limit data has been downloaded successfully.");
             }
         }
-
         private string AbbreviateSheetName(string sheetName, HashSet<string> existingNames)
         {
             if (sheetName.Length > 31)
@@ -559,7 +561,6 @@ namespace LAPxv8
 
             return sheetName;
         }
-
         private void DisplayProperties()
         {
             var sb = new StringBuilder();
@@ -612,7 +613,6 @@ namespace LAPxv8
 
             propertiesTextBox.Text = sb.ToString();
         }
-
         private void FillResultsTreeView()
         {
             resultsTreeView.Nodes.Clear(); // Clear any existing nodes
@@ -1039,21 +1039,18 @@ namespace LAPxv8
 
             graphPanel.Controls.Add(chart); // Adding the chart to graphPanel
         }
-
         private void AutoRangeXCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             xAxisStartTextBox.Enabled = !autoRangeXCheckBox.Checked;
             xAxisEndTextBox.Enabled = !autoRangeXCheckBox.Checked;
             UpdateGraph();
         }
-
         private void AutoRangeYCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             yAxisStartTextBox.Enabled = !autoRangeYCheckBox.Checked;
             yAxisEndTextBox.Enabled = !autoRangeYCheckBox.Checked;
             UpdateGraph();
         }
-
         private void UpdateGraph()
         {
             if (resultsTreeView.SelectedNode?.Tag is ResultData selectedResult)
@@ -1094,7 +1091,6 @@ namespace LAPxv8
                 DisplayGraph(selectedResult);
             }
         }
-
         private void ApplyScaleType(ResultData result)
         {
             double xStart, xEnd, yStart, yEnd;
@@ -1115,7 +1111,6 @@ namespace LAPxv8
 
             // ...
         }
-
         private void DisplayResultDetails(ResultData result)
         {
             var details = new StringBuilder();
@@ -1228,7 +1223,6 @@ namespace LAPxv8
 
             detailsTextBox.Text = details.ToString();
         }
-
         private static string DetermineResultValuesType(ISequenceResult sequenceResult)
         {
             if (sequenceResult.HasMeterValues)
@@ -1263,7 +1257,6 @@ namespace LAPxv8
             }
             return null;
         }
-
         public List<SignalPathData> GetCheckedData()
         {
             var checkedSignalPaths = new List<SignalPathData>();
@@ -1420,7 +1413,6 @@ namespace LAPxv8
 
             return checkedSignalPaths;
         }
-
         private void DownloadJsonButton_Click(object sender, EventArgs e)
         {
             try
@@ -1451,7 +1443,6 @@ namespace LAPxv8
                 MessageBox.Show($"An error occurred: {ex.Message}");
             }
         }
-
         private void DownloadDataAsJson(string filePath)
         {
             // Parse properties text into a dictionary
@@ -1488,7 +1479,6 @@ namespace LAPxv8
             File.WriteAllText(filePath, serializedData);
             MessageBox.Show("Data has been downloaded successfully.");
         }
-
         private void DownloadDataAsExcel(string filePath)
         {
             using (var workbook = new XLWorkbook())
@@ -1566,7 +1556,6 @@ namespace LAPxv8
                 MessageBox.Show("Data has been downloaded successfully.");
             }
         }
-
         private void RunScriptButton_Click(object sender, EventArgs e)
         {
             try
@@ -1603,7 +1592,6 @@ namespace LAPxv8
             AppendLog(logTextBox, "GetCurrentFormData: Returning abbreviated JSON data: " + abbreviatedData);
             return jsonData;
         }
-
         private Dictionary<string, string> ParsePropertiesToDictionary(string propertiesText)
         {
             var dictionary = new Dictionary<string, string>();
@@ -1620,7 +1608,6 @@ namespace LAPxv8
 
             return dictionary;
         }
-
         private object CreateResultObject(ResultData result)
         {
             // Only include relevant fields, excluding limits
@@ -1643,13 +1630,16 @@ namespace LAPxv8
                 MeterValues = result.ResultValueType == "Meter Values" ? result.MeterValues : null
             };
         }
-
-
         private void SessionsButton_Click(object sender, EventArgs e)
         {
             string sessionData = GetCurrentFormData();
             var sessionForm = new FormSessionManager(sessionData, sessionList, SessionMode.View, this, (message) => AppendLog(logTextBox, message), accessToken, refreshToken);
             sessionForm.ShowDialog();
+        }
+        private void TestResultsGridMenuItem_Click(object sender, EventArgs e)
+        {
+            var testResultsGridForm = new TestResultsGrid(this); // Pass the current form if required
+            testResultsGridForm.ShowDialog();
         }
 
         public class SignalPathData

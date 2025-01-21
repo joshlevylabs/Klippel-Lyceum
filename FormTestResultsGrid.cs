@@ -64,7 +64,7 @@ namespace LAPxv8
         private ListBox propertyListBox;
         private ListBox testListBox;
         private ListBox propertyVariantListBox;
-        private Form1 mainForm;
+        private FormAudioPrecision8 mainForm;
         private TextBox customTestNameTextBox;
         private GroupBox aristotleFrame;
         private RichTextBox aristotleChatLog;
@@ -77,7 +77,7 @@ namespace LAPxv8
         private static DateTime _lastApiCall = DateTime.MinValue;
         private static readonly TimeSpan _minTimeBetweenCalls = TimeSpan.FromSeconds(2);
         public string SystemKey { get; private set; }
-        public TestResultsGrid(Form1 form)
+        public TestResultsGrid(FormAudioPrecision8 form)
 
         {
 
@@ -3215,22 +3215,6 @@ namespace LAPxv8
                 Width = 250 // Set a fixed width for the group box
             };
 
-            // Initialize the ComboBox
-            testSelectionComboBox = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 200,
-                BackColor = System.Drawing.Color.FromArgb(60, 60, 60),
-                ForeColor = System.Drawing.Color.White
-            };
-
-            // Get available programs from Form1
-            var availablePrograms = mainForm.GetAvailablePrograms();
-
-            // Populate ComboBox with options from Form1.cs
-            testSelectionComboBox.Items.AddRange(availablePrograms.ToArray());
-            testSelectionComboBox.SelectedIndexChanged += TestSelectionComboBox_SelectedIndexChanged;
-
             // Initialize the custom test name TextBox
             customTestNameTextBox = new TextBox
             {
@@ -3251,10 +3235,10 @@ namespace LAPxv8
                 FlatStyle = FlatStyle.Flat,
                 FlatAppearance = { BorderSize = 0 },
                 Margin = new Padding(0, 10, 0, 0), // Add margin to ensure spacing below the textbox
-                Enabled = false // Initially disabled until a test is selected
+                Enabled = false // Initially disabled until a test name is entered
             };
             ApplyRoundedCorners(addButton);
-            addButton.Click += AddTest_Click;
+            addButton.Click += (sender, e) => AddCustomTestName();
 
             // Create a ListBox for added tests
             addedTestsListBox = new ListBox
@@ -3275,19 +3259,36 @@ namespace LAPxv8
             {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
-                RowCount = 4,
+                RowCount = 3,
                 ColumnCount = 1
             };
 
-            tableLayoutPanel.Controls.Add(testSelectionComboBox, 0, 0);
-            tableLayoutPanel.Controls.Add(customTestNameTextBox, 0, 1);
-            tableLayoutPanel.Controls.Add(addButton, 0, 2);
-            tableLayoutPanel.Controls.Add(addedTestsListBox, 0, 3); // Add the added tests ListBox
+            tableLayoutPanel.Controls.Add(customTestNameTextBox, 0, 0);
+            tableLayoutPanel.Controls.Add(addButton, 0, 1);
+            tableLayoutPanel.Controls.Add(addedTestsListBox, 0, 2); // Add the added tests ListBox
 
             // Add the TableLayoutPanel to the group box
             groupBox.Controls.Add(tableLayoutPanel);
 
+            // Enable the Add button when text is entered in the custom test name TextBox
+            customTestNameTextBox.TextChanged += (sender, e) =>
+            {
+                addButton.Enabled = !string.IsNullOrWhiteSpace(customTestNameTextBox.Text);
+            };
+
             return groupBox;
+        }
+
+        // Add a test name based on user input
+        private void AddCustomTestName()
+        {
+            string userInput = customTestNameTextBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(userInput))
+            {
+                string testName = $"{userInput} - Audio Precision 8.0";
+                addedTestsListBox.Items.Add(testName);
+                customTestNameTextBox.Clear(); // Clear the TextBox after adding
+            }
         }
 
         private void InitializeDataGridView(Control.ControlCollection parentControls)
