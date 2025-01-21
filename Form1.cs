@@ -13,7 +13,7 @@ namespace LAPxv8
 {
     public partial class Form1 : BaseForm
     {
-        private ComboBox programListComboBox = new ComboBox();
+        private PictureBox logoPictureBox = new PictureBox();
         private TextBox usernameTextBox = new TextBox();
         private TextBox passwordTextBox = new TextBox();
         private Button loginButton = new Button();
@@ -43,18 +43,25 @@ namespace LAPxv8
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
 
+            // Logo PictureBox
+            logoPictureBox.Size = new Size(200, 200); // Adjust size as needed
+            logoPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            logoPictureBox.Location = new Point((this.Width - logoPictureBox.Width) / 2, 30);
+            logoPictureBox.Image = Image.FromFile(Path.Combine(Application.StartupPath, "Resources", "logo.png")); // Ensure the logo.png file exists in the specified path
+            Controls.Add(logoPictureBox);
+
             // Username Label
             Label usernameLabel = new Label
             {
                 Text = "Lycuem Username:",
                 ForeColor = Color.White,
-                Location = new Point(20, 20 + verticalSpacing),
+                Location = new Point(20, 180 + verticalSpacing),
                 Width = 200
             };
             Controls.Add(usernameLabel);
 
             // Username TextBox
-            usernameTextBox.Location = new Point(20, 50 + verticalSpacing);
+            usernameTextBox.Location = new Point(20, 215 + verticalSpacing);
             usernameTextBox.Width = 380;
             usernameTextBox.ForeColor = Color.Gray;
             usernameTextBox.Text = "Enter your username";
@@ -70,13 +77,13 @@ namespace LAPxv8
             {
                 Text = "Lyceum Password:",
                 ForeColor = Color.White,
-                Location = new Point(20, 100 + verticalSpacing),
+                Location = new Point(20, 260 + verticalSpacing),
                 Width = 200
             };
             Controls.Add(passwordLabel);
 
             // Password TextBox
-            passwordTextBox.Location = new Point(20, 130 + verticalSpacing);
+            passwordTextBox.Location = new Point(20, 290 + verticalSpacing);
             passwordTextBox.Width = 380;
             passwordTextBox.PasswordChar = '*';
             passwordTextBox.ForeColor = Color.Gray;
@@ -90,7 +97,7 @@ namespace LAPxv8
 
             // Login Button
             loginButton.Text = "Login";
-            loginButton.Location = new Point(20, 180 + verticalSpacing);
+            loginButton.Location = new Point(20, 340 + verticalSpacing);
             loginButton.Width = 380;
             loginButton.Height = 50; // Increased height
             loginButton.BackColor = Color.FromArgb(75, 110, 175); // Updated color for modern look
