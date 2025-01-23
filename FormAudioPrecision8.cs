@@ -18,6 +18,8 @@ using static LAPxv8.FormAudioPrecision8;
 using static LAPxv8.FormSessionManager;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
+using System.ComponentModel;
+
 
 
 namespace LAPxv8
@@ -40,6 +42,8 @@ namespace LAPxv8
         private TextBox propertiesTextBox;
         public event Action<ProjectSession> OnSessionDataCreated;
         private TextBox logTextBox;
+        private double xStart, xEnd, yStart, yEnd;
+        private bool xStartValid, xEndValid, yStartValid, yEndValid;
 
         public List<ProjectSession> sessionList = new List<ProjectSession>();
 
@@ -51,11 +55,10 @@ namespace LAPxv8
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
 
-            // Hide the Lyceum logo
-            //LogoPictureBox.Visible = false;
-
             InitializeComponents();
             InitializeWindow();
+            LogManager.Initialize(); // Initialize the log system
+
         }
 
         protected override void AddCustomMenuItems()
@@ -106,6 +109,10 @@ namespace LAPxv8
             testResultsGridMenuItem.Click += TestResultsGridMenuItem_Click;
             openMenu.DropDownItems.Add(testResultsGridMenuItem);
 
+            // Add Log Window menu item
+            ToolStripMenuItem logWindowMenuItem = new ToolStripMenuItem("Log Window");
+            logWindowMenuItem.Click += LogWindowMenuItem_Click;
+            openMenu.DropDownItems.Add(logWindowMenuItem);
 
             menuStrip.Items.Add(openMenu);
         }
@@ -115,14 +122,13 @@ namespace LAPxv8
             this.Text = "Audio Precision Control";
             this.Font = new Font("Segoe UI", 10);
             this.BackColor = Color.FromArgb(45, 45, 45); // Dark Mode background
-            this.Size = new Size(1800, 1000);
+            this.Size = new Size(1800, 800);
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
 
             // Adjust the MenuStrip to hug the top of the window
             menuStrip.Dock = DockStyle.Top; // Ensure the menu bar is docked to the top
             menuStrip.Padding = new Padding(0); // Remove any internal padding from the menu strip
-
             this.Padding = new Padding(0, 30, 0, 0); // Adding padding to avoid overlap with MenuStrip
 
             // Calculate new widths based on the 2/3 ratio
@@ -133,38 +139,20 @@ namespace LAPxv8
             Color buttonBackColor = Color.FromArgb(75, 110, 175);
             Color buttonForeColor = Color.White;
 
-            // GroupBox for Properties
-            GroupBox propertiesGroup = new GroupBox
-            {
-                Text = "Properties",
-                ForeColor = Color.White,
-                Location = new Point(20, 60),
-                Size = new Size(newWidth, 200), // Adjusted width to 2/3
-                BackColor = Color.FromArgb(45, 45, 45)
-            };
-            Controls.Add(propertiesGroup);
-
-            // Properties TextBox
-            propertiesTextBox = new TextBox
-            {
-                Location = new Point(10, 30),
-                Size = new Size(newWidth - 20, 140), // Adjusted width
-                Multiline = true,
-                ScrollBars = ScrollBars.Both,
-                ReadOnly = true,
-                BackColor = Color.FromArgb(45, 45, 45),
-                ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
-            };
-            propertiesGroup.Controls.Add(propertiesTextBox);
+            // Calculate dimensions for dynamic resizing
+            int panelWidth = this.ClientSize.Width / 3 - 30; // Adjust for spacing and padding
+            int totalHeight = this.ClientSize.Height - 80; // Account for menu strip and padding
+            int resultsHeight = (int)(totalHeight * 0.5); // 50% height for Results
+            int detailsHeight = (int)(totalHeight * 0.3); // 30% height for Details
+            int propertiesHeight = totalHeight - resultsHeight - detailsHeight; // Remaining height for Global Properties
 
             // GroupBox for Results
             GroupBox resultsGroup = new GroupBox
             {
                 Text = "Results",
                 ForeColor = Color.White,
-                Location = new Point(20, 280),
-                Size = new Size(newWidth, 200), // Adjusted width to 2/3
+                Location = new Point(20, 60),
+                Size = new Size(panelWidth, resultsHeight),
                 BackColor = Color.FromArgb(45, 45, 45)
             };
             Controls.Add(resultsGroup);
@@ -173,22 +161,22 @@ namespace LAPxv8
             resultsTreeView = new TreeView
             {
                 Location = new Point(10, 30),
-                Size = new Size(newWidth - 20, 150), // Adjusted width
+                Size = new Size(panelWidth - 20, resultsHeight - 40),
                 Font = new Font("Segoe UI", 10),
                 BackColor = Color.FromArgb(45, 45, 45),
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle
             };
-            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
             resultsGroup.Controls.Add(resultsTreeView);
+            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
 
             // GroupBox for Details
             GroupBox detailsGroup = new GroupBox
             {
                 Text = "Details",
                 ForeColor = Color.White,
-                Location = new Point(20, 500),
-                Size = new Size(newWidth, 250), // Adjusted width to 2/3
+                Location = new Point(20, 60 + resultsHeight + 10),
+                Size = new Size(panelWidth, detailsHeight),
                 BackColor = Color.FromArgb(45, 45, 45)
             };
             Controls.Add(detailsGroup);
@@ -197,7 +185,7 @@ namespace LAPxv8
             detailsTextBox = new TextBox
             {
                 Location = new Point(10, 30),
-                Size = new Size(newWidth - 20, 200), // Adjusted width
+                Size = new Size(panelWidth - 20, detailsHeight - 40),
                 Font = new Font("Segoe UI", 10),
                 Multiline = true,
                 ScrollBars = ScrollBars.Both,
@@ -208,6 +196,37 @@ namespace LAPxv8
             };
             detailsGroup.Controls.Add(detailsTextBox);
 
+            // GroupBox for Global Properties
+            GroupBox propertiesGroup = new GroupBox
+            {
+                Text = "Global Properties",
+                ForeColor = Color.White,
+                Location = new Point(20, 60 + resultsHeight + detailsHeight + 20),
+                Size = new Size(panelWidth, propertiesHeight),
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+            Controls.Add(propertiesGroup);
+
+            // Properties TextBox
+            propertiesTextBox = new TextBox
+            {
+                Location = new Point(10, 30),
+                Size = new Size(panelWidth - 20, propertiesHeight - 40),
+                Multiline = true,
+                ScrollBars = ScrollBars.Both,
+                ReadOnly = true,
+                BackColor = Color.FromArgb(45, 45, 45),
+                ForeColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            propertiesGroup.Controls.Add(propertiesTextBox);
+
+            // Initialize Graph Preferences
+            InitializeGraphPreferences(newWidth, remainingWidth);
+        }
+
+        private void InitializeGraphPreferences(int newWidth, int remainingWidth)
+        {
             // GroupBox for Graph
             GroupBox graphGroup = new GroupBox
             {
@@ -228,126 +247,200 @@ namespace LAPxv8
             };
             graphGroup.Controls.Add(graphPanel);
 
-            // Adjusted Graph Preferences GroupBox height and position
+            // GroupBox for Graph Preferences
             GroupBox graphPreferencesGroup = new GroupBox
             {
-                Location = new Point(newWidth + 40, 670), // Position it below the adjusted graph group
-                Size = new Size(remainingWidth, 160), // Increased height to fit all elements
+                Location = new Point(newWidth + 40, 670), // Below graph
+                Size = new Size(remainingWidth, 160),
                 Text = "Graph Preferences",
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45)
             };
             Controls.Add(graphPreferencesGroup);
 
-            // X-Axis Scale ComboBox
+            // Initialize other graph preference controls...
+            InitializeGraphPreferenceControls(graphPreferencesGroup);
+        }
+        private void InitializeGraphPreferenceControls(GroupBox graphPreferencesGroup)
+        {
+            TableLayoutPanel tableLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 6, // 5 columns
+                RowCount = 3,    // 3 rows
+                BackColor = Color.FromArgb(45, 45, 45),
+                Padding = new Padding(5) // Add some padding for alignment
+            };
+
+            // Set fixed width for each column
+            for (int i = 0; i < 5; i++)
+            {
+                tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
+            }
+
+            // Set equal row heights
+            for (int i = 0; i < 3; i++)
+            {
+                tableLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
+            }
+
+            // Initialize controls
             xScaleComboBox = new ComboBox
             {
-                Location = new Point(10, 30),
-                Width = 160,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 BackColor = Color.FromArgb(45, 45, 45),
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Items = { "Linear", "Logarithmic" },
-                SelectedIndex = 0
+                FlatStyle = FlatStyle.Flat
             };
-            xScaleComboBox.SelectedIndexChanged += (sender, e) => UpdateGraph();
-            graphPreferencesGroup.Controls.Add(xScaleComboBox);
+            xScaleComboBox.Items.AddRange(new[] { "Linear", "Logarithmic" });
+            xScaleComboBox.SelectedIndex = 0;
 
-            // Y-Axis Scale ComboBox
             yScaleComboBox = new ComboBox
             {
-                Location = new Point(180, 30), // Moved to the right of X-Axis Scale
-                Width = 160,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 BackColor = Color.FromArgb(45, 45, 45),
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Items = { "Linear", "Logarithmic" },
-                SelectedIndex = 0
+                FlatStyle = FlatStyle.Flat
             };
-            yScaleComboBox.SelectedIndexChanged += (sender, e) => UpdateGraph();
-            graphPreferencesGroup.Controls.Add(yScaleComboBox);
+            yScaleComboBox.Items.AddRange(new[] { "Linear", "Logarithmic" });
+            yScaleComboBox.SelectedIndex = 0;
 
-            // Auto-Range X CheckBox
             autoRangeXCheckBox = new CheckBox
             {
                 Text = "Auto-Range X",
-                Location = new Point(10, 70), // Moved below the X-Axis Scale ComboBox
-                Checked = true,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45)
+                BackColor = Color.FromArgb(45, 45, 45),
+                Checked = true,
+                AutoSize = true
             };
             autoRangeXCheckBox.CheckedChanged += AutoRangeXCheckBox_CheckedChanged;
-            graphPreferencesGroup.Controls.Add(autoRangeXCheckBox);
 
-            // Auto-Range Y CheckBox
             autoRangeYCheckBox = new CheckBox
             {
                 Text = "Auto-Range Y",
-                Location = new Point(180, 70), // Moved to the right of Auto-Range X
-                Checked = true,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45)
+                BackColor = Color.FromArgb(45, 45, 45),
+                Checked = true,
+                AutoSize = true
             };
             autoRangeYCheckBox.CheckedChanged += AutoRangeYCheckBox_CheckedChanged;
-            graphPreferencesGroup.Controls.Add(autoRangeYCheckBox);
 
-            // Show Limits CheckBox
             showLimitsCheckBox = new CheckBox
             {
                 Text = "Show Limits",
-                Location = new Point(360, 70), // Moved to the right of Auto-Range Y
-                Checked = true,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45)
+                BackColor = Color.FromArgb(45, 45, 45),
+                Checked = true,
+                AutoSize = true
             };
-            graphPreferencesGroup.Controls.Add(showLimitsCheckBox);
 
-            // X-Axis Start TextBox
             xAxisStartTextBox = new TextBox
             {
-                Location = new Point(10, 110), // Moved below Auto-Range X
-                Width = 70,
                 BackColor = Color.FromArgb(45, 45, 45),
-                ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                ForeColor = Color.White
             };
-            graphPreferencesGroup.Controls.Add(xAxisStartTextBox);
 
-            // X-Axis End TextBox
             xAxisEndTextBox = new TextBox
             {
-                Location = new Point(90, 110), // Moved to the right of X-Axis Start
-                Width = 70,
                 BackColor = Color.FromArgb(45, 45, 45),
-                ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                ForeColor = Color.White
             };
-            graphPreferencesGroup.Controls.Add(xAxisEndTextBox);
 
-            // Log TextBox
-            logTextBox = new TextBox
+            yAxisStartTextBox = new TextBox
             {
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
-                Font = new Font("Consolas", 10),
-                Location = new Point(20, 850), // Reposition to ensure visibility
-                Size = new Size(newWidth, 120), // Adjust size as needed
                 BackColor = Color.FromArgb(45, 45, 45),
-                ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                ForeColor = Color.White
             };
-            Controls.Add(logTextBox);
+
+            yAxisEndTextBox = new TextBox
+            {
+                BackColor = Color.FromArgb(45, 45, 45),
+                ForeColor = Color.White
+            };
+            CheckBox showMinorTicksXCheckBox = new CheckBox
+            {
+                Text = "Show Minor Ticks (X)",
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45),
+                Checked = true,
+                AutoSize = true
+            };
+            showMinorTicksXCheckBox.CheckedChanged += (sender, e) =>
+            {
+                var selectedResult = resultsTreeView.SelectedNode?.Tag as ResultData;
+                if (selectedResult != null)
+                {
+                    selectedResult.ShowMinorTicksX = showMinorTicksXCheckBox.Checked;
+                    UpdateGraph();
+                }
+            };
+
+            CheckBox showMinorTicksYCheckBox = new CheckBox
+            {
+                Text = "Show Minor Ticks (Y)",
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45),
+                Checked = true,
+                AutoSize = true
+            };
+            showMinorTicksYCheckBox.CheckedChanged += (sender, e) =>
+            {
+                var selectedResult = resultsTreeView.SelectedNode?.Tag as ResultData;
+                if (selectedResult != null)
+                {
+                    selectedResult.ShowMinorTicksY = showMinorTicksYCheckBox.Checked;
+                    UpdateGraph();
+                }
+            };
+            // 'Update Graph' Button
+            Button updateGraphButton = new Button
+            {
+                Text = "Update Graph",
+                BackColor = Color.FromArgb(75, 110, 175),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Fill
+            };
+            updateGraphButton.Click += (sender, e) => UpdateGraph();
+
+            // Add controls to the table layout in the specified order
+
+            // Row 1
+            tableLayout.Controls.Add(updateGraphButton, 5, 0);
+            tableLayout.Controls.Add(new Label { Text = "X-Axis Scale:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 1, 0);
+            tableLayout.Controls.Add(xScaleComboBox, 2, 0);
+            tableLayout.Controls.Add(new Label { Text = "Y-Axis Scale:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 3, 0);
+            tableLayout.Controls.Add(yScaleComboBox, 4, 0);
+            tableLayout.Controls.Add(showLimitsCheckBox, 0, 0);
+
+
+            // Row 2
+            tableLayout.Controls.Add(autoRangeXCheckBox, 0, 1);
+            tableLayout.Controls.Add(new Label { Text = "X-Axis Low:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 1, 1);
+            tableLayout.Controls.Add(xAxisStartTextBox, 2, 1);
+            tableLayout.Controls.Add(new Label { Text = "X-Axis High:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 3, 1);
+            tableLayout.Controls.Add(xAxisEndTextBox, 4, 1);
+            tableLayout.Controls.Add(showMinorTicksXCheckBox, 5, 1);
+
+            // Row 3
+            tableLayout.Controls.Add(autoRangeYCheckBox, 0, 2);
+            tableLayout.Controls.Add(new Label { Text = "Y-Axis Low:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 1, 2);
+            tableLayout.Controls.Add(yAxisStartTextBox, 2, 2);
+            tableLayout.Controls.Add(new Label { Text = "Y-Axis High:", ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 3, 2);
+            tableLayout.Controls.Add(yAxisEndTextBox, 4, 2);
+            tableLayout.Controls.Add(showMinorTicksYCheckBox, 5, 2); // Row 3, Column 6
+
+            // Add the table layout to the group box
+            graphPreferencesGroup.Controls.Add(tableLayout);
         }
+
         private void InitializeWindow()
         {
             this.SuspendLayout();
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1800, 1000); // Increased size
-            this.MinimumSize = new System.Drawing.Size(1800, 1000); // Adjusted minimum size
+            this.ClientSize = new System.Drawing.Size(1850, 850);
+            this.MinimumSize = new System.Drawing.Size(1850, 850); 
             this.Name = "FormAudioPrecision8";
             this.Text = "Audio Precision Control";
             this.BackColor = Color.FromArgb(45, 45, 45);
@@ -359,6 +452,7 @@ namespace LAPxv8
             this.ResumeLayout(false);
             this.PerformLayout();
         }
+        
         public class RoundedRectangleHelper
         {
             [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
@@ -371,13 +465,28 @@ namespace LAPxv8
                 int nHeightEllipse // height of ellipse
             );
         }
-
         private void GetCheckedDataButton_Click(object sender, EventArgs e)
         {
-            checkedData = GetCheckedData();
-            FillResultsTreeView(); // Populate the TreeView instead of the ListBox
-            DisplayProperties();
+            LogManager.AppendLog("Get Checked Data button clicked.");
+            try
+            {
+                checkedData = GetCheckedData();
+                LogManager.AppendLog($"Checked data retrieved: {checkedData.Count} signal paths.");
+                foreach (var sp in checkedData)
+                {
+                    LogManager.AppendLog($"Signal Path: {sp.Name}, Measurements: {sp.Measurements.Count}");
+                }
+
+                FillResultsTreeView();
+                LogManager.AppendLog("Results TreeView populated successfully.");
+                DisplayProperties();
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"Error in GetCheckedDataButton_Click: {ex.Message}");
+            }
         }
+
         private void LimitEditorButton_Click(object sender, EventArgs e)
         {
             if (checkedData == null || !checkedData.Any())
@@ -615,6 +724,12 @@ namespace LAPxv8
         }
         private void FillResultsTreeView()
         {
+            if (resultsTreeView == null)
+            {
+                LogManager.AppendLog("Error: resultsTreeView is not initialized.");
+                return;
+            }
+
             resultsTreeView.Nodes.Clear(); // Clear any existing nodes
 
             foreach (var signalPath in checkedData)
@@ -652,51 +767,78 @@ namespace LAPxv8
         }
         private void ResultsTreeView_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (e.Node.Tag is ResultData selectedResult)
+            if (e.Node?.Tag is ResultData selectedResult)
             {
-                DisplayResultDetails(selectedResult);
+                // Restore preferences for this result
+                xScaleComboBox.SelectedItem = selectedResult.XScale;
+                yScaleComboBox.SelectedItem = selectedResult.YScale;
+                autoRangeXCheckBox.Checked = selectedResult.AutoRangeX;
+                autoRangeYCheckBox.Checked = selectedResult.AutoRangeY;
+                xAxisStartTextBox.Text = selectedResult.XAxisStart.ToString();
+                xAxisEndTextBox.Text = selectedResult.XAxisEnd.ToString();
+                yAxisStartTextBox.Text = selectedResult.YAxisStart.ToString();
+                yAxisEndTextBox.Text = selectedResult.YAxisEnd.ToString();
+                xScaleComboBox.SelectedItem = selectedResult.XScale;
+                yScaleComboBox.SelectedItem = selectedResult.YScale;
+
                 DisplayGraph(selectedResult);
             }
+            else
+            {
+                LogManager.AppendLog("Error: No result selected or result tag is null.");
+            }
         }
+
         private void DisplayGraph(ResultData result)
         {
             if (result == null)
             {
-                MessageBox.Show("Result data is null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog("Error: result is null in DisplayGraph.");
+                return;
+            }
+            if (graphPanel == null)
+            {
+                LogManager.AppendLog("Error: graphPanel is not initialized.");
                 return;
             }
 
+            LogManager.AppendLog($"Displaying graph for result: {result.Name}");
+
+            graphPanel.Controls.Clear();
             var sequenceResult = GetSequenceResult(result);
             if (sequenceResult == null)
             {
-                MessageBox.Show("Invalid sequence result.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog($"Sequence result for {result.Name} is null. DisplayGraph aborted.");
                 return;
             }
 
-            if (graphPanel == null)
-            {
-                MessageBox.Show("Graph panel is not initialized.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                return;
-            }
-
-            // Clear previous graph
-            graphPanel.Controls.Clear();
-
+            // Handle graph types
             switch (DetermineResultValuesType(sequenceResult))
             {
                 case "Meter Values":
-                    DisplayMeterGraph(sequenceResult, result); // Pass the ResultData object as well
-                    xScaleComboBox.Enabled = false; // Disable X-axis scale change for meter values (bar chart)
+                    DisplayMeterGraph(sequenceResult, result);
+                    xScaleComboBox.Enabled = false; // Disable X-axis scale change for meter values
                     break;
 
                 case "XY Values":
-                    DisplayXYGraph(result, showLimitsCheckBox.Checked); // Updated call with limits
+                    // Ensure limits and data arrays are initialized
+                    if (result.XValues == null || result.YValuesPerChannel == null || result.YValuesPerChannel.Count == 0)
+                    {
+                        LogManager.AppendLog($"Result data for {result.Name} does not contain valid XY data.");
+                        MessageBox.Show($"Invalid XY data for result {result.Name}.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                        return;
+                    }
+                    DisplayXYGraph(result, showLimitsCheckBox.Checked);
                     xScaleComboBox.Enabled = true; // Enable X-axis scale change for XY values
                     break;
 
-                    // Add other cases as needed
+                default:
+                    LogManager.AppendLog($"Unsupported result type for {result.Name}. DisplayGraph aborted.");
+                    MessageBox.Show($"Unsupported result type for {result.Name}.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
             }
         }
+
         private ISequenceResult GetSequenceResult(ResultData result)
         {
             if (result == null)
@@ -752,45 +894,66 @@ namespace LAPxv8
         {
             if (sequenceResult == null || resultData == null)
             {
-                MessageBox.Show("Sequence result or result data is null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog("Error: Sequence result or result data is null in DisplayMeterGraph.");
                 return;
             }
 
             double[] meterValues = sequenceResult.GetMeterValues();
             if (meterValues == null)
             {
-                MessageBox.Show("Meter values are null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog("Error: Meter values are null.");
                 return;
             }
+
+            // Disable X-Axis preferences for Meter Values
+            autoRangeXCheckBox.Enabled = false;
+            xAxisStartTextBox.Enabled = false;
+            xAxisEndTextBox.Enabled = false;
 
             Chart chart = new Chart
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(45, 45, 45), // Set background color to dark mode
+                BackColor = Color.FromArgb(45, 45, 45),
                 ForeColor = Color.White
             };
             ChartArea chartArea = new ChartArea
             {
-                BackColor = Color.FromArgb(45, 45, 45), // Match chart area background color to the dark theme
-                BorderColor = Color.Gray, // Optional: set border color to contrast with the dark background
+                BackColor = Color.FromArgb(45, 45, 45),
                 AxisX =
         {
-            LineColor = Color.White, // Set axis line color to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-            LabelStyle = { ForeColor = Color.White } // Set label text color
+            LineColor = Color.White,
+            MajorGrid = { LineColor = Color.Gray },
+            MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
+            LabelStyle = { ForeColor = Color.White }
         },
                 AxisY =
         {
-            LineColor = Color.White, // Set axis line color to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-            LabelStyle = { ForeColor = Color.White } // Set label text color
+            LineColor = Color.White,
+            MajorGrid = { LineColor = Color.Gray },
+            MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
+            LabelStyle = { ForeColor = Color.White }
         }
             };
+
+            // Auto-range Y-axis and disable manual input
+            chartArea.AxisY.IsLogarithmic = resultData.YScale == "Logarithmic";
+            if (resultData.AutoRangeY)
+            {
+                chartArea.AxisY.Minimum = double.NaN; // Enable auto-range
+                chartArea.AxisY.Maximum = double.NaN;
+            }
+            else
+            {
+                chartArea.AxisY.Minimum = resultData.YAxisStart;
+                chartArea.AxisY.Maximum = resultData.YAxisEnd;
+            }
+
             chart.ChartAreas.Add(chartArea);
 
             Series series = new Series
             {
-                ChartType = SeriesChartType.Column
+                ChartType = SeriesChartType.Column,
+                Color = Color.CornflowerBlue
             };
 
             for (int i = 0; i < meterValues.Length; i++)
@@ -800,74 +963,26 @@ namespace LAPxv8
 
             chart.Series.Add(series);
 
-            // Set the title of the chart
+            // Add title
             Title title = new Title($"{resultData.SignalPathName} - {resultData.MeasurementName} - {resultData.Name}")
             {
-                Font = new Font("Segoe UI", 14, FontStyle.Bold), // Change font here
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 ForeColor = Color.White
             };
             chart.Titles.Add(title);
 
-            // Set font for X and Y axis labels
-            chartArea.AxisX.LabelStyle.Font = new Font("Segoe UI", 12); // Change font here
-            chartArea.AxisX.LabelStyle.ForeColor = Color.White;
-            chartArea.AxisY.LabelStyle.Font = new Font("Segoe UI", 12); // Change font here
-            chartArea.AxisY.LabelStyle.ForeColor = Color.White;
-
-            // Set font for X and Y axis titles (if applicable)
-            chartArea.AxisX.TitleFont = new Font("Segoe UI", 12, FontStyle.Bold); // Change font here
-            chartArea.AxisX.TitleForeColor = Color.White;
-            chartArea.AxisY.TitleFont = new Font("Segoe UI", 12, FontStyle.Bold); // Change font here
-            chartArea.AxisY.TitleForeColor = Color.White;
-
-            if (resultData.UpperLimitEnabled || resultData.LowerLimitEnabled)
-            {
-                double[] meterUpperLimitValues = sequenceResult.GetMeterUpperLimitValues();
-                double[] meterLowerLimitValues = sequenceResult.GetMeterLowerLimitValues();
-
-                if (meterUpperLimitValues == null || meterLowerLimitValues == null)
-                {
-                    MessageBox.Show("Meter limit values are null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                }
-                else
-                {
-                    Series upperLimitMarkers = new Series
-                    {
-                        ChartType = SeriesChartType.Point,
-                        MarkerStyle = MarkerStyle.Cross,
-                        MarkerSize = 12,
-                        MarkerColor = Color.Red,
-                        Color = Color.Transparent // No line color
-                    };
-
-                    Series lowerLimitMarkers = new Series
-                    {
-                        ChartType = SeriesChartType.Point,
-                        MarkerStyle = MarkerStyle.Cross,
-                        MarkerSize = 12,
-                        MarkerColor = Color.Blue,
-                        Color = Color.Transparent // No line color
-                    };
-
-                    for (int i = 0; i < meterValues.Length; i++)
-                    {
-                        if (i < meterUpperLimitValues.Length)
-                        {
-                            upperLimitMarkers.Points.AddXY(i + 1, meterUpperLimitValues[i]);
-                        }
-                        if (i < meterLowerLimitValues.Length)
-                        {
-                            lowerLimitMarkers.Points.AddXY(i + 1, meterLowerLimitValues[i]);
-                        }
-                    }
-
-                    chart.Series.Add(upperLimitMarkers);
-                    chart.Series.Add(lowerLimitMarkers);
-                }
-            }
-
-            graphPanel.Controls.Add(chart); // Adding the chart to graphPanel
+            graphPanel.Controls.Add(chart);
+            LogManager.AppendLog("Meter graph displayed successfully.");
         }
+
+        // Enable the controls for other graph types
+        private void EnableAxisControls(bool enable)
+        {
+            autoRangeXCheckBox.Enabled = enable;
+            xAxisStartTextBox.Enabled = enable;
+            xAxisEndTextBox.Enabled = enable;
+        }
+
         private void DisplayXYGraph(ResultData result, bool showLimits)
         {
             if (result == null)
@@ -900,21 +1015,34 @@ namespace LAPxv8
                 BackColor = Color.FromArgb(45, 45, 45), // Match chart area background color to the dark theme
                 BorderColor = Color.Gray, // Optional: set border color to contrast with the dark background
                 AxisX =
-        {
-            LineColor = Color.White, // Set axis line color to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-            LabelStyle = { ForeColor = Color.White } // Set label text color
-        },
+                {
+                    LineColor = Color.White, // Set axis line color to white
+                    MajorGrid = { LineColor = Color.Gray }, // Set grid line color
+                    LabelStyle = { ForeColor = Color.White } // Set label text color
+                },
                 AxisY =
-        {
-            LineColor = Color.White, // Set axis line color to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-            LabelStyle = { ForeColor = Color.White } // Set label text color
-        }
+                {
+                    LineColor = Color.White, // Set axis line color to white
+                    MajorGrid = { LineColor = Color.Gray }, // Set grid line color
+                    LabelStyle = { ForeColor = Color.White } // Set label text color
+                }
             };
 
             chartArea.AxisX.IsLogarithmic = result.XScale == "Logarithmic";
             chartArea.AxisY.IsLogarithmic = result.YScale == "Logarithmic";
+
+            // Disable auto-range for logarithmic scale (required for proper rendering)
+            if (chartArea.AxisX.IsLogarithmic)
+            {
+                chartArea.AxisX.Minimum = xStartValid ? xStart : 0.1; // Avoid zero or negative values
+                chartArea.AxisX.Maximum = xEndValid ? xEnd : 10; // Provide a default range
+            }
+
+            if (chartArea.AxisY.IsLogarithmic)
+            {
+                chartArea.AxisY.Minimum = yStartValid ? yStart : 0.1; // Avoid zero or negative values
+                chartArea.AxisY.Maximum = yEndValid ? yEnd : 10; // Provide a default range
+            }
 
             if (result.AutoRangeX)
             {
@@ -1041,76 +1169,146 @@ namespace LAPxv8
         }
         private void AutoRangeXCheckBox_CheckedChanged(object sender, EventArgs e)
         {
-            xAxisStartTextBox.Enabled = !autoRangeXCheckBox.Checked;
-            xAxisEndTextBox.Enabled = !autoRangeXCheckBox.Checked;
-            UpdateGraph();
+            if (resultsTreeView.SelectedNode?.Tag is ResultData selectedResult)
+            {
+                // Update the AutoRangeX property for the selected result
+                selectedResult.AutoRangeX = autoRangeXCheckBox.Checked;
+
+                // Enable or disable X-axis input fields based on Auto-Range status
+                xAxisStartTextBox.Enabled = !autoRangeXCheckBox.Checked;
+                xAxisEndTextBox.Enabled = !autoRangeXCheckBox.Checked;
+
+                LogManager.AppendLog($"Auto-Range X changed to {autoRangeXCheckBox.Checked} for {selectedResult.Name}. No graph update yet.");
+            }
+            else
+            {
+                LogManager.AppendLog("Auto-Range X change event triggered, but no result is selected.");
+            }
         }
         private void AutoRangeYCheckBox_CheckedChanged(object sender, EventArgs e)
         {
-            yAxisStartTextBox.Enabled = !autoRangeYCheckBox.Checked;
-            yAxisEndTextBox.Enabled = !autoRangeYCheckBox.Checked;
-            UpdateGraph();
+            if (resultsTreeView.SelectedNode?.Tag is ResultData selectedResult)
+            {
+                // Update the AutoRangeY property for the selected result
+                selectedResult.AutoRangeY = autoRangeYCheckBox.Checked;
+
+                // Enable or disable Y-axis input fields based on Auto-Range status
+                yAxisStartTextBox.Enabled = !autoRangeYCheckBox.Checked;
+                yAxisEndTextBox.Enabled = !autoRangeYCheckBox.Checked;
+
+                LogManager.AppendLog($"Auto-Range Y changed to {autoRangeYCheckBox.Checked} for {selectedResult.Name}. No graph update yet.");
+            }
+            else
+            {
+                LogManager.AppendLog("Auto-Range Y change event triggered, but no result is selected.");
+            }
         }
+
         private void UpdateGraph()
         {
             if (resultsTreeView.SelectedNode?.Tag is ResultData selectedResult)
             {
+                // Validate user inputs for X-axis
+                xStartValid = double.TryParse(xAxisStartTextBox.Text, out xStart) && xStart > 0;
+                xEndValid = double.TryParse(xAxisEndTextBox.Text, out xEnd) && xEnd > xStart;
+
+                // Validate user inputs for Y-axis
+                yStartValid = double.TryParse(yAxisStartTextBox.Text, out yStart) && yStart > 0;
+                yEndValid = double.TryParse(yAxisEndTextBox.Text, out yEnd) && yEnd > yStart;
+
+                // Update graph preferences only if valid
+                if (!selectedResult.AutoRangeX && (!xStartValid || !xEndValid))
+                {
+                    MessageBox.Show("Invalid X-axis range. Ensure values are positive and the end value is greater than the start value.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (!selectedResult.AutoRangeY && (!yStartValid || !yEndValid))
+                {
+                    MessageBox.Show("Invalid Y-axis range. Ensure values are positive and the end value is greater than the start value.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Save user preferences
+                selectedResult.XScale = xScaleComboBox.SelectedItem?.ToString() ?? "Linear";
+                selectedResult.YScale = yScaleComboBox.SelectedItem?.ToString() ?? "Linear";
                 selectedResult.AutoRangeX = autoRangeXCheckBox.Checked;
                 selectedResult.AutoRangeY = autoRangeYCheckBox.Checked;
+                selectedResult.XAxisStart = xStartValid ? xStart : double.NaN;
+                selectedResult.XAxisEnd = xEndValid ? xEnd : double.NaN;
+                selectedResult.YAxisStart = yStartValid ? yStart : double.NaN;
+                selectedResult.YAxisEnd = yEndValid ? yEnd : double.NaN;
 
-                bool xStartValid = double.TryParse(xAxisStartTextBox.Text, out double tempXAxisStart);
-                bool xEndValid = double.TryParse(xAxisEndTextBox.Text, out double tempXAxisEnd);
-                bool yStartValid = double.TryParse(yAxisStartTextBox.Text, out double tempYAxisStart);
-                bool yEndValid = double.TryParse(yAxisEndTextBox.Text, out double tempYAxisEnd);
-
-                // Check if negative values are present and reset scale to Linear if needed
-                if ((xStartValid && tempXAxisStart < 0) || (xEndValid && tempXAxisEnd < 0) ||
-                    (yStartValid && tempYAxisStart < 0) || (yEndValid && tempYAxisEnd < 0))
-                {
-                    xScaleComboBox.SelectedIndex = 0; // Linear
-                    yScaleComboBox.SelectedIndex = 0; // Linear
-                }
-
-                selectedResult.XScale = xScaleComboBox.SelectedItem.ToString();
-                selectedResult.YScale = yScaleComboBox.SelectedItem.ToString();
-
-                if (xStartValid && xEndValid && tempXAxisStart < tempXAxisEnd)
-                {
-                    selectedResult.XAxisStart = tempXAxisStart;
-                    selectedResult.XAxisEnd = tempXAxisEnd;
-                }
-
-                if (yStartValid && yEndValid && tempYAxisStart < tempYAxisEnd)
-                {
-                    selectedResult.YAxisStart = tempYAxisStart;
-                    selectedResult.YAxisEnd = tempYAxisEnd;
-                }
-
-                ApplyScaleType(selectedResult);
-
+                // Display the updated graph
                 DisplayGraph(selectedResult);
+
+                LogManager.AppendLog($"Graph updated for {selectedResult.Name} with new preferences.");
+            }
+            else
+            {
+                LogManager.AppendLog("UpdateGraph clicked, but no result is selected.");
             }
         }
+
+
+        private void LogGraphSettings(ResultData result)
+        {
+            if (result == null)
+            {
+                LogManager.AppendLog("No result data available to log graph settings.");
+                return;
+            }
+
+            LogManager.AppendLog($"Graph Settings for Result: {result.Name}");
+            LogManager.AppendLog($"  X-Scale: {result.XScale}");
+            LogManager.AppendLog($"  Y-Scale: {result.YScale}");
+            LogManager.AppendLog($"  Auto-Range X: {result.AutoRangeX}");
+            LogManager.AppendLog($"  Auto-Range Y: {result.AutoRangeY}");
+            LogManager.AppendLog($"  X-Axis Start: {result.XAxisStart}");
+            LogManager.AppendLog($"  X-Axis End: {result.XAxisEnd}");
+            LogManager.AppendLog($"  Y-Axis Start: {result.YAxisStart}");
+            LogManager.AppendLog($"  Y-Axis End: {result.YAxisEnd}");
+            LogManager.AppendLog($"  Show Limits: {showLimitsCheckBox.Checked}");
+        }
+
+        private void ValidateScaleOptions(ResultData result)
+        {
+            bool hasNegativeX = result.XValues?.Any(x => x <= 0) ?? false;
+            bool hasNegativeY = result.YValuesPerChannel.Values.SelectMany(y => y).Any(y => y <= 0);
+
+            xScaleComboBox.Items.Clear();
+            xScaleComboBox.Items.Add("Linear");
+            if (!hasNegativeX)
+            {
+                xScaleComboBox.Items.Add("Logarithmic");
+            }
+
+            yScaleComboBox.Items.Clear();
+            yScaleComboBox.Items.Add("Linear");
+            if (!hasNegativeY)
+            {
+                yScaleComboBox.Items.Add("Logarithmic");
+            }
+        }
+
         private void ApplyScaleType(ResultData result)
         {
-            double xStart, xEnd, yStart, yEnd;
-            bool xStartValid = double.TryParse(xAxisStartTextBox.Text, out xStart);
-            bool xEndValid = double.TryParse(xAxisEndTextBox.Text, out xEnd);
-            bool yStartValid = double.TryParse(yAxisStartTextBox.Text, out yStart);
-            bool yEndValid = double.TryParse(yAxisEndTextBox.Text, out yEnd);
-
-            // If there are negative values or the result type is "Meter Values", force the scale to Linear
-            if (xStart <= 0 || xEnd <= 0 || yStart <= 0 || yEnd <= 0 || result.ResultValueType == "Meter Values")
+            if (result.XScale == "Logarithmic" && (xStart <= 0 || xEnd <= 0))
             {
-                xScaleComboBox.SelectedIndex = 0; // Linear
-                yScaleComboBox.SelectedIndex = 0; // Linear
+                xScaleComboBox.SelectedIndex = 0;
+                LogManager.AppendLog("Logarithmic scale for x-axis disabled due to non-positive values.");
             }
 
-            result.XScale = xScaleComboBox.SelectedItem.ToString();
-            result.YScale = yScaleComboBox.SelectedItem.ToString();
+            if (result.YScale == "Logarithmic" && (yStart <= 0 || yEnd <= 0))
+            {
+                yScaleComboBox.SelectedIndex = 0;
+                LogManager.AppendLog("Logarithmic scale for y-axis disabled due to non-positive values.");
+            }
 
-            // ...
+            result.XScale = xScaleComboBox.SelectedItem?.ToString() ?? "Linear";
+            result.YScale = yScaleComboBox.SelectedItem?.ToString() ?? "Linear";
         }
+
         private void DisplayResultDetails(ResultData result)
         {
             var details = new StringBuilder();
@@ -1589,7 +1787,7 @@ namespace LAPxv8
 
             string jsonData = JsonConvert.SerializeObject(dataToDownload, Formatting.Indented);
             string abbreviatedData = jsonData.Substring(0, Math.Min(jsonData.Length, 100)) + "..."; // Abbreviating to 100 chars
-            AppendLog(logTextBox, "GetCurrentFormData: Returning abbreviated JSON data: " + abbreviatedData);
+            LogManager.AppendLog("GetCurrentFormData: Returning abbreviated JSON data: " + abbreviatedData);
             return jsonData;
         }
         private Dictionary<string, string> ParsePropertiesToDictionary(string propertiesText)
@@ -1633,13 +1831,18 @@ namespace LAPxv8
         private void SessionsButton_Click(object sender, EventArgs e)
         {
             string sessionData = GetCurrentFormData();
-            var sessionForm = new FormSessionManager(sessionData, sessionList, SessionMode.View, this, (message) => AppendLog(logTextBox, message), accessToken, refreshToken);
+            var sessionForm = new FormSessionManager(sessionData, sessionList, SessionMode.View, this, LogManager.AppendLog, accessToken, refreshToken);
             sessionForm.ShowDialog();
         }
         private void TestResultsGridMenuItem_Click(object sender, EventArgs e)
         {
-            var testResultsGridForm = new TestResultsGrid(this); // Pass the current form if required
+            var testResultsGridForm = new FormTestResultsGrid(this); // Pass the current form if required
             testResultsGridForm.ShowDialog();
+        }
+        private void LogWindowMenuItem_Click(object sender, EventArgs e)
+        {
+            LogManager.ShowLogWindow();
+            LogManager.AppendLog("Log window opened.");
         }
 
         public class SignalPathData
@@ -1648,14 +1851,12 @@ namespace LAPxv8
             public List<MeasurementData> Measurements { get; set; } = new List<MeasurementData>();
             public int Index { get; set; }
         }
-
         public class MeasurementData
         {
             public string Name { get; set; } = string.Empty;
             public List<ResultData> Results { get; set; } = new List<ResultData>();
             public int Index { get; set; }
         }
-
         public class ResultData
         {
             public string Name { get; set; } = string.Empty;
@@ -1690,6 +1891,8 @@ namespace LAPxv8
             public double YAxisEnd { get; set; } = double.NaN;
             public string XScale { get; set; } = "Linear";
             public string YScale { get; set; } = "Linear";
+            public bool ShowMinorTicksX { get; set; } = true;
+            public bool ShowMinorTicksY { get; set; } = true;
 
             // Limit properties
             public bool UpperLimitEnabled { get; set; }
@@ -1704,6 +1907,80 @@ namespace LAPxv8
             public double[] YValueUpperLimitValues { get; set; }
             public string SignalPathName { get; set; }
             public string MeasurementName { get; set; }
+
+        }
+        public static class LogManager
+        {
+            private static LogWindow logWindow;
+
+            public static void Initialize()
+            {
+                if (logWindow == null)
+                {
+                    logWindow = new LogWindow();
+                }
+            }
+
+            public static void ShowLogWindow()
+            {
+                if (logWindow == null)
+                {
+                    Initialize();
+                }
+                logWindow.Show();
+            }
+
+            public static void AppendLog(string message)
+            {
+                if (logWindow == null)
+                {
+                    Initialize();
+                }
+                logWindow.AppendLog(message);
+            }
+        }
+        public class LogWindow : Form
+        {
+            private TextBox logTextBox;
+
+            public LogWindow()
+            {
+                this.Text = "Logs";
+                this.Size = new Size(800, 600);
+                this.BackColor = Color.FromArgb(45, 45, 45); // Dark mode background
+                this.FormBorderStyle = FormBorderStyle.Sizable;
+
+                InitializeComponents();
+            }
+
+            private void InitializeComponents()
+            {
+                logTextBox = new TextBox
+                {
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    Font = new Font("Consolas", 10),
+                    Dock = DockStyle.Fill,
+                    BackColor = Color.FromArgb(30, 30, 30),
+                    ForeColor = Color.White
+                };
+
+                Controls.Add(logTextBox);
+            }
+
+            public void AppendLog(string message)
+            {
+                if (logTextBox.InvokeRequired)
+                {
+                    logTextBox.Invoke(new Action(() => AppendLog(message)));
+                }
+                else
+                {
+                    logTextBox.AppendText($"{DateTime.Now}: {message}{Environment.NewLine}");
+                    logTextBox.ScrollToCaret(); // Ensures the log window scrolls to the latest entry
+                }
+            }
 
         }
 

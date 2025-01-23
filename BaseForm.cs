@@ -15,7 +15,7 @@ namespace LAPxv8
             InitializeBaseFormComponents();
         }
 
-        private void InitializeBaseFormComponents()
+        protected void InitializeBaseFormComponents()
         {
             // Assuming your executable is run from the bin\Debug or bin\Release folder,
             // and your images are copied to the same folder upon build

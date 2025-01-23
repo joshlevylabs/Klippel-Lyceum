@@ -18,7 +18,7 @@ namespace LAPxv8
 {
     public partial class Aristotle : BaseForm
     {
-        private TestResultsGrid parentForm;
+        private FormTestResultsGrid parentForm;
         private RichTextBox chatLogTextBox;  // Changed from TextBox to RichTextBox for better formatting
         private TextBox inputTextBox;
         private Button executeButton;
@@ -30,7 +30,7 @@ namespace LAPxv8
         private static event EventHandler<string> NewTestResultAdded;
 
 
-        public Aristotle(TestResultsGrid parent)
+        public Aristotle(FormTestResultsGrid parent)
         {
             parentForm = parent;
             InitializeComponent();

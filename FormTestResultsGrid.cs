@@ -30,10 +30,16 @@ using System.Windows.Media.TextFormatting;
 using ScottPlot;
 using ScottPlot.Styles;
 using NAudio.Gui;
+using static LAPxv8.FormAudioPrecision8;
+using static LAPxv8.FormAPLimitEditor;
+using static LAPxv8.FormSessionManager;
+using static LAPxv8.FormLyceumDataViewer;
+using static LAPxv8.FormLyceumLimitImport;
+using static LAPxv8.FormTestResultsGrid;
 
 namespace LAPxv8
 {
-    public partial class TestResultsGrid : BaseForm
+    public partial class FormTestResultsGrid : BaseForm
     {
         // Your existing variables and controls
         private ComboBox testSelectionComboBox;
@@ -77,7 +83,7 @@ namespace LAPxv8
         private static DateTime _lastApiCall = DateTime.MinValue;
         private static readonly TimeSpan _minTimeBetweenCalls = TimeSpan.FromSeconds(2);
         public string SystemKey { get; private set; }
-        public TestResultsGrid(FormAudioPrecision8 form)
+        public FormTestResultsGrid(FormAudioPrecision8 form)
 
         {
 
@@ -3423,7 +3429,7 @@ namespace LAPxv8
             private int rowIndex;
             private int columnIndex;
             private string resultStatus;
-            private TestResultsGrid parentForm;
+            private FormTestResultsGrid parentForm;
             private ComboBox lycFileComboBox;
             private TextBox searchTextBox; // Add this for the search bar
             private List<string> allLycFiles; // Store all .lyc files for filtering
@@ -3432,7 +3438,7 @@ namespace LAPxv8
             public string DecryptedData { get; private set; }
             public string SelectedFileName { get; private set; }
 
-            public FormAttachTestResults(int rowIndex, int columnIndex, string resultStatus, TestResultsGrid parentForm)
+            public FormAttachTestResults(int rowIndex, int columnIndex, string resultStatus, FormTestResultsGrid parentForm)
             {
                 this.rowIndex = rowIndex;
                 this.columnIndex = columnIndex;

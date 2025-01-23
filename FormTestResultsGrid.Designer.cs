@@ -1,4 +1,4 @@
-﻿namespace LAPxv8._0
+﻿namespace LAPxv8
 {
     public partial class TestResultsGrid : System.Windows.Forms.Form
     {
