@@ -782,10 +782,13 @@ namespace LAPxv8
                 yScaleComboBox.SelectedItem = selectedResult.YScale;
 
                 DisplayGraph(selectedResult);
+                DisplayResultDetails(selectedResult);
+
             }
             else
             {
                 LogManager.AppendLog("Error: No result selected or result tag is null.");
+                detailsTextBox.Text = "No details available for the selected node.";
             }
         }
 
@@ -1272,112 +1275,113 @@ namespace LAPxv8
 
             try
             {
-                // Check if Signal Path Index is within the valid range
+                // Ensure Signal Path Index is valid
                 if (result.SignalPathIndex >= APx.Sequence.Count)
                 {
-                    details.AppendLine($"Error: Signal Path Index ({result.SignalPathIndex}) out of range. Max index: {APx.Sequence.Count - 1}");
+                    details.AppendLine($"Error: Signal Path Index ({result.SignalPathIndex}) out of range.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
-                var signalPath = this.APx.Sequence[result.SignalPathIndex] as ISignalPath;
+                var signalPath = APx.Sequence[result.SignalPathIndex] as ISignalPath;
                 if (signalPath == null || !signalPath.Checked)
                 {
                     details.AppendLine($"Error: Invalid or unchecked Signal Path at index {result.SignalPathIndex}.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
-                // Check if Measurement Index is within the valid range
+                // Ensure Measurement Index is valid
                 if (result.MeasurementIndex >= signalPath.Count)
                 {
-                    details.AppendLine($"Error: Measurement Index ({result.MeasurementIndex}) out of range in Signal Path ({result.SignalPathIndex}). Max index: {signalPath.Count - 1}");
+                    details.AppendLine($"Error: Measurement Index ({result.MeasurementIndex}) out of range.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
                 var measurement = signalPath[result.MeasurementIndex] as ISequenceMeasurement;
                 if (measurement == null || !measurement.Checked || !measurement.IsValid)
                 {
-                    details.AppendLine($"Error: Invalid or unchecked Measurement at index {result.MeasurementIndex} in Signal Path {result.SignalPathIndex}.");
+                    details.AppendLine($"Error: Invalid or unchecked Measurement at index {result.MeasurementIndex}.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
-                // Check if Result Index is within the valid range
+                // Ensure Result Index is valid
                 if (result.Index >= measurement.SequenceResults.Count)
                 {
-                    details.AppendLine($"Error: Result Index ({result.Index}) out of range in Measurement ({result.MeasurementIndex}) of Signal Path ({result.SignalPathIndex}). Max index: {measurement.SequenceResults.Count - 1}");
+                    details.AppendLine($"Error: Result Index ({result.Index}) out of range.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
                 var sequenceResult = measurement.SequenceResults[result.Index] as ISequenceResult;
-
-                if (result.UpperLimitEnabled)
-                {
-                    bool upperLimitCheck = sequenceResult.LimitCheckEnabled(LimitType.Upper, VerticalAxis.Left);
-                    details.AppendLine($"Upper Limit Enabled: {upperLimitCheck}");
-                }
-
-                if (result.LowerLimitEnabled)
-                {
-                    bool lowerLimitCheck = sequenceResult.LimitCheckEnabled(LimitType.Lower, VerticalAxis.Left);
-                    details.AppendLine($"Lower Limit Enabled: {lowerLimitCheck}");
-                }
                 if (sequenceResult == null)
                 {
-                    details.AppendLine($"Error: Invalid Result at index {result.Index} in Measurement {result.MeasurementIndex} of Signal Path {result.SignalPathIndex}.");
+                    details.AppendLine($"Error: Invalid Result at index {result.Index}.");
+                    detailsTextBox.Text = details.ToString();
                     return;
                 }
 
-                // Display details
+                // Display Result Details
                 details.AppendLine($"Result Name: {sequenceResult.Name}");
-                details.AppendLine($"Measurement Type: {sequenceResult.ResultType}");
-                details.AppendLine($"Number of Channels: {sequenceResult.ChannelCount}");
-                details.AppendLine($"Pass/Fail Status: {(sequenceResult.PassedResult ? "Passed" : "Failed")}");
-                details.AppendLine($"Signal Path Index: {result.SignalPathIndex}");
-                details.AppendLine($"Measurement Index: {result.MeasurementIndex}");
+                details.AppendLine($"Measurement Type: {result.MeasurementType}");
+                details.AppendLine($"Channel Count: {result.ChannelCount}");
+                details.AppendLine($"Pass/Fail Status: {(result.Passed ? "Passed" : "Failed")}");
+                details.AppendLine($"Signal Path: {result.SignalPathName}");
+                details.AppendLine($"Measurement: {result.MeasurementName}");
                 details.AppendLine($"Result Index: {result.Index}");
 
-                // Displaying the limit check statuses
-                details.AppendLine($"Upper Limit Enabled: {result.UpperLimitEnabled}");
-                details.AppendLine($"Lower Limit Enabled: {result.LowerLimitEnabled}");
-                string resultValuesType = DetermineResultValuesType(sequenceResult);
-                details.AppendLine($"Result Values Type: {resultValuesType}");
+                // Add Limit Information
+                if (result.UpperLimitEnabled)
+                    details.AppendLine("Upper Limit Enabled: Yes");
+                if (result.LowerLimitEnabled)
+                    details.AppendLine("Lower Limit Enabled: Yes");
 
-                // Display units based on Result Values Type
-                details.AppendLine("Units:");
-                switch (resultValuesType)
+                // Display Units
+                details.AppendLine($"X Unit: {result.XUnit}");
+                details.AppendLine($"Y Unit: {result.YUnit}");
+                details.AppendLine($"Meter Unit: {result.MeterUnit}");
+
+                // Display Limit Values
+                if (result.ResultValueType == "XY Values")
                 {
-                    case "Meter Values":
-                        details.AppendLine($"  Meter Units: {sequenceResult.MeterUnit}");
-                        break;
-                    case "XY Values":
-                        details.AppendLine($"  X-Units: {sequenceResult.XUnit}");
-                        details.AppendLine($"  Y-Units: {sequenceResult.YUnit}");
-                        break;
-                    case "XYY Values":
-                        // Assuming similar methods exist for LeftUnit and RightUnit
-                        details.AppendLine($"  X-Units: {sequenceResult.XUnit}");
-                        details.AppendLine($"  Y-Units: {sequenceResult.YUnit}"); // Or use LeftUnit and RightUnit as applicable
-                        break;
-                    default:
-                        details.AppendLine("  Not applicable for this result type.");
-                        break;
+                    details.AppendLine("Limit Values (XY):");
+                    if (result.XValueUpperLimitValues != null && result.YValueUpperLimitValues != null)
+                    {
+                        details.AppendLine("  Upper Limits:");
+                        for (int i = 0; i < result.XValueUpperLimitValues.Length; i++)
+                        {
+                            details.AppendLine($"    X: {result.XValueUpperLimitValues[i]}, Y: {result.YValueUpperLimitValues[i]}");
+                        }
+                    }
+
+                    if (result.XValueLowerLimitValues != null && result.YValueLowerLimitValues != null)
+                    {
+                        details.AppendLine("  Lower Limits:");
+                        for (int i = 0; i < result.XValueLowerLimitValues.Length; i++)
+                        {
+                            details.AppendLine($"    X: {result.XValueLowerLimitValues[i]}, Y: {result.YValueLowerLimitValues[i]}");
+                        }
+                    }
                 }
 
-                details.AppendLine("Channel Status and Limits:");
-                for (int ch = 0; ch < sequenceResult.ChannelCount; ch++)
+                // Display Channel Pass/Fail Status
+                details.AppendLine("Channel Status:");
+                foreach (var channel in result.ChannelPassFail)
                 {
-                    string channelName = sequenceResult.ChannelNames[ch];
-                    bool channelPassed = sequenceResult.PassedLimitCheckOnChannel((InputChannelIndex)ch, LimitType.Upper, VerticalAxis.Left) &&
-                                         sequenceResult.PassedLimitCheckOnChannel((InputChannelIndex)ch, LimitType.Lower, VerticalAxis.Left);
-                    details.AppendLine($"  Channel {channelName}: {(channelPassed ? "Passed" : "Failed")}");
+                    details.AppendLine($"  {channel.Key}: {(channel.Value ? "Passed" : "Failed")}");
                 }
+
             }
             catch (Exception ex)
             {
-                details.AppendLine($"An error occurred: {ex.Message}");
+                details.AppendLine($"An error occurred while retrieving details: {ex.Message}");
             }
 
             detailsTextBox.Text = details.ToString();
         }
+
         private static string DetermineResultValuesType(ISequenceResult sequenceResult)
         {
             if (sequenceResult.HasMeterValues)
