@@ -899,9 +899,9 @@ namespace LAPxv8
             }
 
             double[] meterValues = sequenceResult.GetMeterValues();
-            if (meterValues == null)
+            if (meterValues == null || meterValues.Length == 0)
             {
-                LogManager.AppendLog("Error: Meter values are null.");
+                LogManager.AppendLog("Error: Meter values are null or empty.");
                 return;
             }
 
@@ -909,6 +909,18 @@ namespace LAPxv8
             autoRangeXCheckBox.Enabled = false;
             xAxisStartTextBox.Enabled = false;
             xAxisEndTextBox.Enabled = false;
+
+            // Disable logarithmic scaling options
+            xScaleComboBox.Enabled = false;
+            yScaleComboBox.Enabled = false;
+
+            // Calculate Y-axis min and max values
+            double yMin = meterValues.Min();
+            double yMax = meterValues.Max();
+
+            // Update Y-axis range text boxes
+            yAxisStartTextBox.Text = yMin.ToString("G6");
+            yAxisEndTextBox.Text = yMax.ToString("G6");
 
             Chart chart = new Chart
             {
@@ -920,19 +932,21 @@ namespace LAPxv8
             {
                 BackColor = Color.FromArgb(45, 45, 45),
                 AxisX =
-        {
-            LineColor = Color.White,
-            MajorGrid = { LineColor = Color.Gray },
-            MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
-            LabelStyle = { ForeColor = Color.White }
-        },
+                {
+                    LineColor = Color.White,
+                    MajorGrid = { LineColor = Color.Gray },
+                    MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
+                    LabelStyle = { ForeColor = Color.White }
+                },
                 AxisY =
-        {
-            LineColor = Color.White,
-            MajorGrid = { LineColor = Color.Gray },
-            MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
-            LabelStyle = { ForeColor = Color.White }
-        }
+                {
+                    LineColor = Color.White,
+                    MajorGrid = { LineColor = Color.Gray },
+                    MinorGrid = { Enabled = true, LineColor = Color.Gray, LineDashStyle = ChartDashStyle.Dot }, // Minor tick marks
+                    LabelStyle = { ForeColor = Color.White },
+                    Title = "Meter Value",
+                    TitleForeColor = Color.White
+                }
             };
 
             // Auto-range Y-axis and disable manual input
@@ -950,6 +964,9 @@ namespace LAPxv8
 
             chart.ChartAreas.Add(chartArea);
 
+            // Generate unique colors for each bar
+            var colors = new[] { Color.CornflowerBlue, Color.Orange, Color.Green, Color.Red, Color.Purple };
+
             Series series = new Series
             {
                 ChartType = SeriesChartType.Column,
@@ -962,6 +979,14 @@ namespace LAPxv8
             }
 
             chart.Series.Add(series);
+
+            Legend legend = new Legend
+            {
+                Docking = Docking.Top,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+            chart.Legends.Add(legend);
 
             // Add title
             Title title = new Title($"{resultData.SignalPathName} - {resultData.MeasurementName} - {resultData.Name}")
@@ -1004,69 +1029,44 @@ namespace LAPxv8
                 return;
             }
 
+            // Enable all graph preferences for XY graph
+            autoRangeXCheckBox.Enabled = true;
+            xAxisStartTextBox.Enabled = true;
+            xAxisEndTextBox.Enabled = true;
+            xScaleComboBox.Enabled = true;
+            yScaleComboBox.Enabled = true;
+
             Chart chart = new Chart
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(45, 45, 45), // Set background color to dark mode
+                BackColor = Color.FromArgb(45, 45, 45),
                 ForeColor = Color.White
             };
             ChartArea chartArea = new ChartArea
             {
-                BackColor = Color.FromArgb(45, 45, 45), // Match chart area background color to the dark theme
-                BorderColor = Color.Gray, // Optional: set border color to contrast with the dark background
+                BackColor = Color.FromArgb(45, 45, 45),
                 AxisX =
-                {
-                    LineColor = Color.White, // Set axis line color to white
-                    MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-                    LabelStyle = { ForeColor = Color.White } // Set label text color
-                },
+        {
+            LineColor = Color.White,
+            MajorGrid = { LineColor = Color.Gray },
+            LabelStyle = { ForeColor = Color.White },
+            Title = "X-Axis",
+            TitleForeColor = Color.White
+        },
                 AxisY =
-                {
-                    LineColor = Color.White, // Set axis line color to white
-                    MajorGrid = { LineColor = Color.Gray }, // Set grid line color
-                    LabelStyle = { ForeColor = Color.White } // Set label text color
-                }
+        {
+            LineColor = Color.White,
+            MajorGrid = { LineColor = Color.Gray },
+            LabelStyle = { ForeColor = Color.White },
+            Title = "Y-Axis",
+            TitleForeColor = Color.White
+        }
             };
 
-            chartArea.AxisX.IsLogarithmic = result.XScale == "Logarithmic";
-            chartArea.AxisY.IsLogarithmic = result.YScale == "Logarithmic";
-
-            // Disable auto-range for logarithmic scale (required for proper rendering)
-            if (chartArea.AxisX.IsLogarithmic)
-            {
-                chartArea.AxisX.Minimum = xStartValid ? xStart : 0.1; // Avoid zero or negative values
-                chartArea.AxisX.Maximum = xEndValid ? xEnd : 10; // Provide a default range
-            }
-
-            if (chartArea.AxisY.IsLogarithmic)
-            {
-                chartArea.AxisY.Minimum = yStartValid ? yStart : 0.1; // Avoid zero or negative values
-                chartArea.AxisY.Maximum = yEndValid ? yEnd : 10; // Provide a default range
-            }
-
-            if (result.AutoRangeX)
-            {
-                chartArea.AxisX.Minimum = double.NaN;
-                chartArea.AxisX.Maximum = double.NaN;
-            }
-            else
-            {
-                chartArea.AxisX.Minimum = result.XAxisStart;
-                chartArea.AxisX.Maximum = result.XAxisEnd;
-            }
-
-            if (result.AutoRangeY)
-            {
-                chartArea.AxisY.Minimum = double.NaN;
-                chartArea.AxisY.Maximum = double.NaN;
-            }
-            else
-            {
-                chartArea.AxisY.Minimum = result.YAxisStart;
-                chartArea.AxisY.Maximum = result.YAxisEnd;
-            }
-
             chart.ChartAreas.Add(chartArea);
+
+            double xMin = double.MaxValue, xMax = double.MinValue;
+            double yMin = double.MaxValue, yMax = double.MinValue;
 
             for (int ch = 0; ch < sequenceResult.ChannelCount; ch++)
             {
@@ -1081,92 +1081,49 @@ namespace LAPxv8
 
                 Series dataSeries = new Series($"Channel {ch + 1}")
                 {
-                    ChartType = SeriesChartType.Line
+                    ChartType = SeriesChartType.Line,
+                    BorderWidth = 2
                 };
 
                 for (int i = 0; i < xValues.Length; i++)
                 {
                     dataSeries.Points.AddXY(xValues[i], yValues[i]);
+                    xMin = Math.Min(xMin, xValues[i]);
+                    xMax = Math.Max(xMax, xValues[i]);
+                    yMin = Math.Min(yMin, yValues[i]);
+                    yMax = Math.Max(yMax, yValues[i]);
                 }
 
                 chart.Series.Add(dataSeries);
             }
 
-            if (showLimits)
+            // Add legend
+            Legend legend = new Legend
             {
-                for (int ch = 0; ch < sequenceResult.ChannelCount; ch++)
-                {
-                    var xyLowerLimit = sequenceResult.GetXYLowerLimit(VerticalAxis.Left);
-                    var xyUpperLimit = sequenceResult.GetXYUpperLimit(VerticalAxis.Left);
+                Docking = Docking.Top,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+            chart.Legends.Add(legend);
 
-                    if (xyLowerLimit == null || xyUpperLimit == null)
-                    {
-                        MessageBox.Show("XY limit values are null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                        continue;
-                    }
+            // Update text boxes with calculated ranges
+            xAxisStartTextBox.Text = xMin.ToString("G6");
+            xAxisEndTextBox.Text = xMax.ToString("G6");
+            yAxisStartTextBox.Text = yMin.ToString("G6");
+            yAxisEndTextBox.Text = yMax.ToString("G6");
 
-                    var xLowerLimitValues = xyLowerLimit.GetXValues((InputChannelIndex)ch);
-                    var yLowerLimitValues = xyLowerLimit.GetYValues((InputChannelIndex)ch);
-                    var xUpperLimitValues = xyUpperLimit.GetXValues((InputChannelIndex)ch);
-                    var yUpperLimitValues = xyUpperLimit.GetYValues((InputChannelIndex)ch);
-
-                    if (xLowerLimitValues == null || yLowerLimitValues == null || xUpperLimitValues == null || yUpperLimitValues == null)
-                    {
-                        MessageBox.Show("Limit values are null for channel " + (ch + 1), "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                        continue;
-                    }
-
-                    Series lowerLimitSeries = new Series($"Lower Limit Channel {ch + 1}")
-                    {
-                        ChartType = SeriesChartType.Line,
-                        BorderDashStyle = ChartDashStyle.Dash,
-                        Color = Color.Blue
-                    };
-
-                    for (int i = 0; i < xLowerLimitValues.Length; i++)
-                    {
-                        lowerLimitSeries.Points.AddXY(xLowerLimitValues[i], yLowerLimitValues[i]);
-                    }
-
-                    Series upperLimitSeries = new Series($"Upper Limit Channel {ch + 1}")
-                    {
-                        ChartType = SeriesChartType.Line,
-                        BorderDashStyle = ChartDashStyle.Dash,
-                        Color = Color.Red
-                    };
-
-                    for (int i = 0; i < xUpperLimitValues.Length; i++)
-                    {
-                        upperLimitSeries.Points.AddXY(xUpperLimitValues[i], yUpperLimitValues[i]);
-                    }
-
-                    chart.Series.Add(lowerLimitSeries);
-                    chart.Series.Add(upperLimitSeries);
-                }
-            }
-
-            // Set the title of the chart
+            // Add title
             Title title = new Title($"{result.SignalPathName} - {result.MeasurementName} - {result.Name}")
             {
-                Font = new Font("Segoe UI", 14, FontStyle.Bold), // Change font here
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 ForeColor = Color.White
             };
             chart.Titles.Add(title);
 
-            // Set font for X and Y axis labels
-            chartArea.AxisX.LabelStyle.Font = new Font("Segoe UI", 12); // Change font here
-            chartArea.AxisX.LabelStyle.ForeColor = Color.White;
-            chartArea.AxisY.LabelStyle.Font = new Font("Segoe UI", 12); // Change font here
-            chartArea.AxisY.LabelStyle.ForeColor = Color.White;
-
-            // Set font for X and Y axis titles (if applicable)
-            chartArea.AxisX.TitleFont = new Font("Segoe UI", 12, FontStyle.Bold); // Change font here
-            chartArea.AxisX.TitleForeColor = Color.White;
-            chartArea.AxisY.TitleFont = new Font("Segoe UI", 12, FontStyle.Bold); // Change font here
-            chartArea.AxisY.TitleForeColor = Color.White;
-
-            graphPanel.Controls.Add(chart); // Adding the chart to graphPanel
+            graphPanel.Controls.Add(chart);
+            LogManager.AppendLog("XY graph displayed successfully.");
         }
+
         private void AutoRangeXCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             if (resultsTreeView.SelectedNode?.Tag is ResultData selectedResult)
