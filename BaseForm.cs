@@ -9,56 +9,49 @@ namespace LAPxv8
     public partial class BaseForm : Form
     {
         protected MenuStrip menuStrip;
+        private bool showMenuStrip = true; // Default to true, but child classes can override this
 
-        public BaseForm()
+        public BaseForm(bool showMenu = true) // Allow child classes to disable menu
         {
+            showMenuStrip = showMenu;
             InitializeBaseFormComponents();
         }
 
         protected void InitializeBaseFormComponents()
         {
-            // Assuming your executable is run from the bin\Debug or bin\Release folder,
-            // and your images are copied to the same folder upon build
-            string basePath = Application.StartupPath; // Gets the startup path of the application
+            string basePath = Application.StartupPath;
             string iconPath = Path.Combine(basePath, "Resources", "LAPx.ico");
 
             // Set the favicon
             this.Icon = new Icon(iconPath);
 
-            // Initialize and add the menu strip
-            menuStrip = new MenuStrip
-            {
-                Dock = DockStyle.Top,
-                BackColor = Color.FromArgb(30, 30, 30), // Dark Mode color
-                ForeColor = Color.White,
-                Padding = new Padding(0, 0, 0, 0)
-            };
-
-            // Add base menu items
-            var fileMenu = new ToolStripMenuItem("File");
-            var homeMenuItem = new ToolStripMenuItem("Home");
-            homeMenuItem.Click += HomeMenuItem_Click;
-            fileMenu.DropDownItems.Add(homeMenuItem);
-
-            menuStrip.Items.Add(fileMenu);
-
-            // Allow derived forms to add more menu items
-            this.MainMenuStrip = menuStrip;
-            this.Controls.Add(menuStrip);
-
             // Form settings
             this.FormBorderStyle = FormBorderStyle.None;
-            this.BackColor = Color.FromArgb(45, 45, 45); // Dark Mode background
-            this.Padding = new Padding(1, 30, 1, 1); // Adjusted padding for better look
-            this.Load += BaseForm_Load;
+            this.BackColor = Color.FromArgb(30, 30, 30); // Dark Mode background
+            this.Padding = new Padding(1, 30, 1, 1);
             this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
-            this.BackColor = Color.FromArgb(30, 30, 30); // Dark mode background
 
-            // To make the form draggable
-            this.MouseDown += BaseForm_MouseDown;
-            this.MouseMove += BaseForm_MouseMove;
+            if (showMenuStrip) // Only add menu if allowed
+            {
+                menuStrip = new MenuStrip
+                {
+                    Dock = DockStyle.Top,
+                    BackColor = Color.FromArgb(30, 30, 30),
+                    ForeColor = Color.White,
+                    Padding = new Padding(0, 0, 0, 0)
+                };
 
-            // Custom title bar paint event
+                var fileMenu = new ToolStripMenuItem("File");
+                var homeMenuItem = new ToolStripMenuItem("Home");
+                homeMenuItem.Click += HomeMenuItem_Click;
+                fileMenu.DropDownItems.Add(homeMenuItem);
+                menuStrip.Items.Add(fileMenu);
+
+                this.MainMenuStrip = menuStrip;
+                this.Controls.Add(menuStrip);
+            }
+
+            this.Load += BaseForm_Load;
             this.Paint += BaseForm_Paint;
         }
 
@@ -76,9 +69,13 @@ namespace LAPxv8
 
         private void BaseForm_Load(object sender, EventArgs e)
         {
-            // Allow dragging of the form
-            menuStrip.MouseDown += HeaderPanel_MouseDown;
-            menuStrip.MouseMove += HeaderPanel_MouseMove;
+            // Only attach event handlers if menuStrip is not null
+            if (menuStrip != null)
+            {
+                menuStrip.MouseDown += HeaderPanel_MouseDown;
+                menuStrip.MouseMove += HeaderPanel_MouseMove;
+                menuStrip.MouseUp += HeaderPanel_MouseUp;
+            }
 
             // Call method to add custom menu items in derived forms
             AddCustomMenuItems();
@@ -103,6 +100,10 @@ namespace LAPxv8
                 Point diff = Point.Subtract(Cursor.Position, new Size(dragCursorPoint));
                 this.Location = Point.Add(dragFormPoint, new Size(diff));
             }
+        }
+        private void HeaderPanel_MouseUp(object sender, MouseEventArgs e)
+        {
+            dragging = false;
         }
 
         protected override void OnMouseUp(MouseEventArgs e)

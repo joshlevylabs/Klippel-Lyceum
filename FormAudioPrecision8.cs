@@ -1,4 +1,4 @@
-using LAPxv8;
+﻿using LAPxv8;
 using System;
 using AudioPrecision.API;
 using System.Windows.Forms;
@@ -81,7 +81,12 @@ namespace LAPxv8
             menuStrip.Items.Add(apx500Menu);
 
             // Download Menu
-            ToolStripMenuItem downloadMenu = new ToolStripMenuItem("Download");
+            ToolStripMenuItem downloadMenu = new ToolStripMenuItem("Data");
+
+            // Add "Create Session" Menu Item
+            ToolStripMenuItem createSessionMenuItem = new ToolStripMenuItem("Create Session");
+            createSessionMenuItem.Click += CreateSessionMenuItem_Click;
+            downloadMenu.DropDownItems.Add(createSessionMenuItem);
 
             ToolStripMenuItem downloadDataMenuItem = new ToolStripMenuItem("Download Data");
             downloadDataMenuItem.Click += DownloadJsonButton_Click;
@@ -1572,6 +1577,52 @@ namespace LAPxv8
 
             return checkedSignalPaths;
         }
+        private void CreateSessionMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                LogManager.AppendLog("Create Session menu option selected.");
+
+                var checkedData = GetCheckedData();  // Get ALL retrieved data
+
+                if (checkedData == null || checkedData.Count == 0)
+                {
+                    MessageBox.Show("No data available for session creation.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // ✅ Retrieve GlobalProperties from propertiesDictionary
+                var propertiesDictionary = ParsePropertiesToDictionary(propertiesTextBox.Text);
+
+                if (propertiesDictionary.Count == 0)
+                {
+                    LogManager.AppendLog("⚠️ Warning: No global properties found.");
+                }
+                else
+                {
+                    LogManager.AppendLog($"✅ Retrieved Global Properties");
+                    //LogManager.AppendLog($"✅ Retrieved Global Properties: {JsonConvert.SerializeObject(propertiesDictionary, Formatting.Indented)}");
+
+                }
+
+                // ✅ Pass GlobalProperties explicitly into AutoSessionCreator
+                AutoSessionCreator autoSession = new AutoSessionCreator(
+                    this,
+                    accessToken,
+                    refreshToken,
+                    checkedData,
+                    propertiesDictionary  // Explicitly pass it here!
+                );
+
+                autoSession.Run();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error initiating session creation: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog($"Error in CreateSessionMenuItem_Click: {ex.Message}");
+            }
+        }
+
         private void DownloadJsonButton_Click(object sender, EventArgs e)
         {
             try
@@ -1727,6 +1778,11 @@ namespace LAPxv8
                 MessageBox.Show($"An error occurred while running the sequence: {ex.Message}");
             }
         }
+        public TextBox GetLogTextBox()
+        {
+            return logTextBox;
+        }
+
         public string GetCurrentFormData()
         {
             var propertiesDictionary = ParsePropertiesToDictionary(propertiesTextBox.Text);
@@ -1899,10 +1955,25 @@ namespace LAPxv8
                 }
                 logWindow.AppendLog(message);
             }
+            public static void AppendLog(TextBox logTextBox, string message)
+            {
+                if (logTextBox.InvokeRequired)
+                {
+                    logTextBox.Invoke(new Action(() => logTextBox.AppendText(message + Environment.NewLine)));
+                }
+                else
+                {
+                    logTextBox.AppendText(message + Environment.NewLine);
+                }
+            }
         }
         public class LogWindow : Form
         {
-            private TextBox logTextBox;
+            public TextBox logTextBox;
+            public TextBox GetLogTextBox()
+            {
+                return logTextBox;
+            }
 
             public LogWindow()
             {
