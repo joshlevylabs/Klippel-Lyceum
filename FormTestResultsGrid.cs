@@ -916,7 +916,7 @@ namespace LAPxv8
             mainPanel.SplitterDistance = 335; // Adjust this value to get the desired width for the left panel
 
             // Initialize and retrieve the system key automatically
-            var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null, null);
+            var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null);
             if (string.IsNullOrEmpty(SystemKey))
             {
                 SystemKey = Cryptography.GetOrCreateEncryptionKey();
@@ -3572,7 +3572,7 @@ namespace LAPxv8
 
             private void AttachButton_Click(object sender, EventArgs e)
             {
-                var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null, null);
+                var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null);
 
                 if (string.IsNullOrEmpty(parentForm.SystemKey))
                 {

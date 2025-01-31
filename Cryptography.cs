@@ -1,8 +1,12 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using static LAPxv8.FormAudioPrecision8;
 
@@ -188,5 +192,92 @@ namespace LAPxv8
         {
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(input));
         }
+
+        public static string ExecuteCommand(string command)
+        {
+            ProcessStartInfo processStartInfo = new ProcessStartInfo("cmd", "/c " + command)
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (Process process = Process.Start(processStartInfo))
+            using (StreamReader reader = process.StandardOutput)
+            {
+                return reader.ReadToEnd();
+            }
+        }
+
+        public static async Task<bool> CheckStaffStatus(string accessToken)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    LogManager.AppendLog($"Access token is null or empty. Cannot proceed with verification.");
+                    return false;
+                }
+
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Clear();
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                    LogManager.AppendLog($"Authorization header set with access token for verification check.");
+
+                    // Send GET request to the user verification endpoint
+                    var response = await client.GetAsync("https://api.thelyceum.io/api/account/me/");
+                    string content = await response.Content.ReadAsStringAsync();
+                    LogManager.AppendLog($"Verification Response Status: {response.StatusCode}");
+                    LogManager.AppendLog($"Verification Response Content: {content}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = JsonConvert.DeserializeObject<Dictionary<string, object>>(content);
+                        if (json != null && json.ContainsKey("is_verified"))
+                        {
+                            bool isVerified = json["is_verified"].ToString().ToLower() == "true";
+                            LogManager.AppendLog($"User verified status: {isVerified}");
+                            return isVerified;
+                        }
+                        else
+                        {
+                            LogManager.AppendLog($"Response JSON does not contain 'is_verified' field.");
+                        }
+                    }
+                    else
+                    {
+                        LogManager.AppendLog($"Failed to retrieve verification status. Non-success status code received.");
+                        LogManager.AppendLog(content);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"Exception occurred while checking Lyceum staff status: {ex.Message}");
+            }
+
+            LogManager.AppendLog($"User is not verified or failed to retrieve verification status.");
+            return false;
+        }
+        public static async Task<bool> IsAuthorizedForDecryption(string accessToken)
+        {
+            // Only check the verification status without requiring a key.
+            return await CheckStaffStatus(accessToken);
+
+        }
+        public static async Task<string> DecryptDataAsync(string encryptedData, string accessToken, string systemKey)
+        {
+            bool isAuthorized = await IsAuthorizedForDecryption(accessToken);
+            if (!isAuthorized)
+            {
+                LogManager.AppendLog($"Authorization failed. Cannot decrypt data.");
+                return null;
+            }
+
+            return isAuthorized ? DecryptString(systemKey, encryptedData) : null;
+        }
+
+
     }
 }

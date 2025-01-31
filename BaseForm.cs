@@ -3,6 +3,9 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+
 
 namespace LAPxv8
 {
@@ -10,6 +13,9 @@ namespace LAPxv8
     {
         protected MenuStrip menuStrip;
         private bool showMenuStrip = true; // Default to true, but child classes can override this
+        private bool dragging = false;
+        private Point dragCursorPoint;
+        private Point dragFormPoint;
 
         public BaseForm(bool showMenu = true) // Allow child classes to disable menu
         {
@@ -42,9 +48,9 @@ namespace LAPxv8
                 };
 
                 var fileMenu = new ToolStripMenuItem("File");
-                var homeMenuItem = new ToolStripMenuItem("Home");
-                homeMenuItem.Click += HomeMenuItem_Click;
-                fileMenu.DropDownItems.Add(homeMenuItem);
+                var logoutMenuItem = new ToolStripMenuItem("Logout"); // Changed from Home to Logout
+                logoutMenuItem.Click += LogoutMenuItem_Click;
+                fileMenu.DropDownItems.Add(logoutMenuItem);
                 menuStrip.Items.Add(fileMenu);
 
                 this.MainMenuStrip = menuStrip;
@@ -53,7 +59,25 @@ namespace LAPxv8
 
             this.Load += BaseForm_Load;
             this.Paint += BaseForm_Paint;
+
+            // Ensure window remains draggable
+            this.MouseDown += BaseForm_MouseDown;
+            this.MouseMove += BaseForm_MouseMove;
+            this.MouseUp += BaseForm_MouseUp;
         }
+        private void LogoutMenuItem_Click(object sender, EventArgs e)
+        {
+            // Close all open forms
+            foreach (Form form in Application.OpenForms.Cast<Form>().ToList())
+            {
+                form.Invoke(new Action(() => form.Close()));
+            }
+
+            // Restart the application
+            Application.ExitThread();
+            System.Diagnostics.Process.Start(Application.ExecutablePath);
+        }
+
 
         protected virtual void AddCustomMenuItems()
         {
@@ -80,11 +104,6 @@ namespace LAPxv8
             // Call method to add custom menu items in derived forms
             AddCustomMenuItems();
         }
-
-
-        private bool dragging = false;
-        private Point dragCursorPoint;
-        private Point dragFormPoint;
 
         private void HeaderPanel_MouseDown(object sender, MouseEventArgs e)
         {
@@ -129,6 +148,10 @@ namespace LAPxv8
                 Point diff = Point.Subtract(Cursor.Position, new Size(dragCursorPoint));
                 this.Location = Point.Add(dragFormPoint, new Size(diff));
             }
+        }
+        private void BaseForm_MouseUp(object sender, MouseEventArgs e)
+        {
+            dragging = false;
         }
 
         private void BaseForm_Paint(object sender, PaintEventArgs e)

@@ -46,23 +46,25 @@ namespace LAPxv8
         private TreeView resultsTreeView;
         private TextBox detailsTextBox;
         private Panel graphPanel;
+        private Label graphTitleLabel;
         private ComboBox globalPropertyComboBox;
+        private Dictionary<string, string> currentGlobalProperties = new Dictionary<string, string>();
         private ComboBox resultDetailComboBox;
         private TextBox logTextBox;
         private TextBox searchTextBox;
+        private Label searchLabel;
         private ToolTip sessionToolTip;
+        private Panel configurationsPanel;
 
         // Method that triggers the event
         public void TriggerSessionCreation(ProjectSession session)
         {
             OnSessionDataCreated?.Invoke(session);
         }
-
-        public FormSessionManager(string jsonData, List<ProjectSession> data, SessionMode mode, FormAudioPrecision8 formAudioPrecision8, Action<string> logger, string accessToken, string refreshToken)
+        public FormSessionManager(string jsonData, List<ProjectSession> data, SessionMode mode, FormAudioPrecision8 formAudioPrecision8, string accessToken, string refreshToken)
         {
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
-            this.externalLogger = logger;
             this.mode = mode;
             this.sessions = data ?? new List<ProjectSession>();
             this.formAudioPrecision8 = formAudioPrecision8;
@@ -108,13 +110,14 @@ namespace LAPxv8
                 };
             }
 
-            LoadSessions();
+            //LoadSessions();
+            // Force window size after initializing UI
+            this.Size = new Size(2000, 1000); // Set desired window size
+            this.MinimumSize = new Size(2000, 1000); // Prevent shrinking smaller than this
+
             this.Load += FormSessionManager_Load;
             Console.WriteLine("FormSessionManager - Constructor: formAudioPrecision8 is " + (formAudioPrecision8 != null ? "not null" : "null"));
         }
-
-        
-
         private void HandleNewSession(ProjectSession newSession)
         {
             sessions.Add(newSession);
@@ -123,27 +126,28 @@ namespace LAPxv8
         }
 
         private string currentSessionData;
-
         public ProjectSession CreatedSession { get; private set; }
-
         // Method to add a new session and refresh the list
         private void AddNewSessionAndLoad(ProjectSession newSession)
         {
             sessions.Add(newSession);
             LoadSessions(); // Refresh the list with the new session
         }
-
         private void InitializeComponents()
         {
             // Form settings
             this.BackColor = Color.FromArgb(45, 45, 45); // Dark mode background
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 10);
-            this.Size = new Size(1400, 900);
+            this.Size = new Size(2000, 1000);
             this.FormBorderStyle = FormBorderStyle.None; // Remove default title bar
             this.MaximizeBox = false;
 
-            // Assuming BaseForm provides title bar and menu strip, no need to add them here
+            // Vertical alignment and sizing
+            int frameHeight = 280;
+            int frameWidth = 300;
+            int verticalSpacing = 20;
+
 
             // If a MenuStrip already exists in the base form, use it
             MenuStrip menuStrip = this.MainMenuStrip;
@@ -164,48 +168,43 @@ namespace LAPxv8
                 menuStrip.Items.Add(optionsMenu);
             }
 
-            // Vertical alignment and sizing
-            int frameHeight = 220;
-            int frameWidth = 300;
-            int verticalSpacing = 20;
+            // Search bar (Position adjusted in FormSessionManager_Load)
+            searchLabel = new Label
+            {
+                Text = "Search for Session:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true
+            };
+            this.Controls.Add(searchLabel);
 
-            // Create and add a group box for sessions
+            searchTextBox = new TextBox
+            {
+                Width = 1200,
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+            searchTextBox.TextChanged += SearchTextBox_TextChanged;
+            this.Controls.Add(searchTextBox);
+
+            // Dynamic position adjustment happens in FormSessionManager_Load
+            this.Load += FormSessionManager_Load;
+
+            // Set the starting Y-position for panels below the search bar
+            int currentYPosition = searchTextBox.Bottom + verticalSpacing;
+
+            // Create and add a group box for Sessions
             GroupBox sessionsGroupBox = new GroupBox
             {
                 Text = "Sessions",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80),
+                Location = new Point(20, currentYPosition + 50),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(sessionsGroupBox);
-
-            // Add a "Search" label next to the search text box.
-            Label searchLabel = new Label
-            {
-                Text = "Search",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.White,
-                Location = new Point(20, menuStrip.Bottom + 10),
-                AutoSize = true
-            };
-            this.Controls.Add(searchLabel);
-
-            // Initialize and set properties for the search text box
-            searchTextBox = new TextBox
-            {
-                Location = new Point(searchLabel.Right + 10, menuStrip.Bottom + 10),
-                Width = 300,
-                //PlaceholderText = "Search sessions...",
-                Font = new Font("Segoe UI", 10),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45),
-                Dock = DockStyle.Top
-            };
-            searchTextBox.TextChanged += SearchTextBox_TextChanged;
-            // Add search box to the form
-            this.Controls.Add(searchTextBox);
 
             sessionsListBox = new ListBox
             {
@@ -215,24 +214,19 @@ namespace LAPxv8
                 HorizontalScrollbar = true,
                 Dock = DockStyle.Fill
             };
-            sessionsListBox.MouseMove += SessionsListBox_MouseMove;
-            sessionsListBox.MouseLeave += SessionsListBox_MouseLeave;
-            // Initialize ToolTip for displaying session names
-            sessionToolTip = new ToolTip();
-
-            sessionsListBox.SelectedIndexChanged += SessionsListBox_SelectedIndexChanged;
             sessionsGroupBox.Controls.Add(sessionsListBox);
+            sessionsListBox.SelectedIndexChanged += SessionsListBox_SelectedIndexChanged;
 
+            currentYPosition += frameHeight + verticalSpacing + 50;
 
-
-            // Create and add a group box for results
+            /// Create and add a group box for Results
             GroupBox resultsGroupBox = new GroupBox
             {
                 Text = "Results",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + frameHeight + verticalSpacing),
+                Location = new Point(20, currentYPosition),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(resultsGroupBox);
@@ -244,17 +238,19 @@ namespace LAPxv8
                 ForeColor = Color.White,
                 Dock = DockStyle.Fill
             };
-            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
             resultsGroupBox.Controls.Add(resultsTreeView);
+            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
 
-            // Create and add a group box for details text box
+            currentYPosition += frameHeight + verticalSpacing;
+
+            // Create and add a group box for Details Text
             GroupBox detailsTextGroupBox = new GroupBox
             {
                 Text = "Details Text",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + 2 * (frameHeight + verticalSpacing)),
+                Location = new Point(20, currentYPosition),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(detailsTextGroupBox);
@@ -271,29 +267,10 @@ namespace LAPxv8
             };
             detailsTextGroupBox.Controls.Add(detailsTextBox);
 
-            // Create and add a group box for log text box
-            GroupBox logGroupBox = new GroupBox
-            {
-                Text = "Log",
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + 3 * (frameHeight + verticalSpacing)),
-                Size = new Size(frameWidth, frameHeight)
-            };
-            this.Controls.Add(logGroupBox);
+            currentYPosition += frameHeight + verticalSpacing;
 
-            logTextBox = new TextBox
-            {
-                Font = new Font("Consolas", 10),
-                BackColor = Color.FromArgb(60, 60, 60),
-                ForeColor = Color.White,
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Dock = DockStyle.Fill,
-                ReadOnly = true
-            };
-            logGroupBox.Controls.Add(logTextBox);
+            // Calculate the remaining height for the graph panel
+            int availableHeight = this.Height - currentYPosition - 40;
 
             // Adjust the size of the GUI window to fit all elements vertically
             int totalHeight = 80 + 4 * (frameHeight + verticalSpacing);
@@ -302,24 +279,37 @@ namespace LAPxv8
             // Reduce the height of the graph panel
             int reducedGraphPanelHeight = totalHeight - 100; // Reduce the height by 100 pixels, adjust as necessary
 
-            // Create and add a group box for the graph panel on the right-hand side
+            // Create a title label for the graph
+            graphTitleLabel = new Label
+            {
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(20, 70),
+                Text = "Graph Title"
+            };
+
+            // Create graph panel
+            graphPanel = new Panel
+            {
+                Location = new Point(20, 90),
+                Size = new Size(1100, 700), 
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+
             GroupBox graphGroupBox = new GroupBox
             {
                 Text = "Graph",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(frameWidth + 60, 80), // Adjusted to start on the right side of other frames
-                Size = new Size(this.Width - frameWidth - 100, reducedGraphPanelHeight) // Reduced height
+                Location = new Point(340, 100),
+                Size = new Size(1200, 800)
             };
-            this.Controls.Add(graphGroupBox);
 
-            graphPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(45, 45, 45)
-            };
+            graphGroupBox.Controls.Add(graphTitleLabel);
             graphGroupBox.Controls.Add(graphPanel);
+            this.Controls.Add(graphGroupBox);
 
             // Additional controls like ComboBoxes and Labels
             globalPropertyComboBox = new ComboBox
@@ -331,7 +321,7 @@ namespace LAPxv8
                 BackColor = Color.FromArgb(60, 60, 60),
                 ForeColor = Color.White
             };
-            this.Controls.Add(globalPropertyComboBox);
+            graphGroupBox.Controls.Add(globalPropertyComboBox);
 
             resultDetailComboBox = new ComboBox
             {
@@ -343,6 +333,108 @@ namespace LAPxv8
                 ForeColor = Color.White
             };
             this.Controls.Add(resultDetailComboBox);
+        }
+        private async void FormSessionManager_Load(object sender, EventArgs e)
+        {
+            LogManager.AppendLog($"[FormSessionManager] Loading...");
+
+            try
+            {
+                systemKey = Cryptography.GetOrCreateEncryptionKey();
+                if (string.IsNullOrEmpty(systemKey))
+                {
+                    LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: Encryption key is NULL. Cannot proceed.");
+                    DisableFormControls();
+                    return;
+                }
+
+                LogManager.AppendLog($"[FormSessionManager] ✅ Encryption key retrieved successfully.");
+
+                bool isAuthorized = await Cryptography.IsAuthorizedForDecryption(accessToken);
+                if (!isAuthorized)
+                {
+                    MessageBox.Show("User not authorized for decryption. Contact Lyceum support.", "Authorization Failed", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+                    DisableFormControls();
+                    return;
+                }
+
+                LogManager.AppendLog($"[FormSessionManager] ✅ Authorization successful. Loading sessions...");
+                await Task.Run(() => LoadSessions());
+
+                // Adjust form position and size based on parent form
+                AdjustWindowPosition();
+
+                // ✅ Adjust search bar position after menuStrip is fully loaded
+                if (this.MainMenuStrip != null)
+                {
+                    int menuBottom = this.MainMenuStrip.Bottom + 10; // Ensure proper spacing
+                    searchLabel.Location = new Point(20, menuBottom);
+                    searchTextBox.Location = new Point(searchLabel.Right + 10, menuBottom - 4);
+                }
+                else
+                {
+                    // Default positioning in case menuStrip isn't loaded properly
+                    searchLabel.Location = new Point(20, 50);
+                    searchTextBox.Location = new Point(searchLabel.Right + 10, 46);
+                }
+
+                this.Size = new Size(1600, 1000); // Ensure size is applied after loading
+                this.WindowState = FormWindowState.Normal; // Prevent forced maximization
+                LogManager.AppendLog($"[FormSessionManager] ✅ UI positioning adjustments completed.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: {ex.Message}");
+                MessageBox.Show($"An error occurred during form load: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+            }
+        }
+        private void AdjustWindowPosition()
+        {
+            if (formAudioPrecision8 != null)
+            {
+                this.StartPosition = FormStartPosition.Manual;
+                this.Size = new Size(1600, 1000); // Ensure size isn't overridden
+                this.Location = new Point(
+                    formAudioPrecision8.Bounds.Left + (formAudioPrecision8.Bounds.Width - this.Width) / 2,
+                    formAudioPrecision8.Bounds.Top + (formAudioPrecision8.Bounds.Height - this.Height) / 2
+                );
+            }
+            else
+            {
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.Size = new Size(1600, 1000);
+            }
+        }
+
+        private void DisableFormControls()
+        {
+            // Disable all controls except the log text box to allow viewing logs
+            if (createNewButton != null)
+                createNewButton.Enabled = false;
+
+            if (sessionsListBox != null)
+                sessionsListBox.Enabled = false;
+
+            if (resultsTreeView != null)
+                resultsTreeView.Enabled = false;
+
+            if (detailsTextBox != null)
+                detailsTextBox.Enabled = false;
+
+            if (globalPropertyComboBox != null)
+                globalPropertyComboBox.Enabled = false;
+
+            if (resultDetailComboBox != null)
+                resultDetailComboBox.Enabled = false;
+
+            // Leave logTextBox enabled to display logs even if authorization fails
+            if (logTextBox != null)
+            {
+                logTextBox.Enabled = true;
+                LogManager.AppendLog($"Logs enabled for viewing.");
+            }
+
+            LogManager.AppendLog($"Form controls have been disabled except for logs.");
         }
         // Method to filter sessions in the ListBox based on search query
         private void SearchTextBox_TextChanged(object sender, EventArgs e)
@@ -375,6 +467,7 @@ namespace LAPxv8
         {
             sessionToolTip.SetToolTip(sessionsListBox, string.Empty);
         }
+
         private void PopulateResultsTreeView(List<CheckedData> checkedData)
         {
             if (resultsTreeView.InvokeRequired)
@@ -401,29 +494,84 @@ namespace LAPxv8
                 resultsTreeView.Nodes.Add(signalPathNode);
             }
 
-            // Optionally expand all nodes
-            // resultsTreeView.ExpandAll();
+            LogManager.AppendLog($"✅ ResultsTreeView populated with {checkedData.Count} signal paths.");
         }
 
         private void ResultsTreeView_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (e.Node.Level == 2) // If a result node is selected
+            if (e.Node == null)
+            {
+                LogManager.AppendLog("⚠️ No node selected in ResultsTreeView.");
+                return;
+            }
+
+            LogManager.AppendLog($"📌 Node selected: {e.Node.Text}, Level: {e.Node.Level}");
+
+            string[] pathParts = e.Node.FullPath.Split('\\');
+            if (pathParts.Length < 3)
+            {
+                LogManager.AppendLog("⚠️ Node selection does not have enough path levels.");
+                return;
+            }
+
+            string signalPathName = pathParts[0];
+            string measurementName = pathParts[1];
+            string resultName = pathParts[2];
+
+            graphTitleLabel.Text = $"{signalPathName} - {measurementName} - {resultName}";
+
+            // Retrieve the selected session from the list box
+            ProjectSession selectedSession = null;
+            if (sessionsListBox.SelectedItem != null)
+            {
+                string selectedTitle = sessionsListBox.SelectedItem.ToString();
+                selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
+            }
+
+            if (selectedSession == null)
+            {
+                LogManager.AppendLog("❌ No session selected. Cannot display properties.");
+                return;
+            }
+
+            if (selectedSession.GlobalProperties != null && selectedSession.GlobalProperties.Count > 0)
+            {
+                LogManager.AppendLog($"✅ Displaying {selectedSession.GlobalProperties.Count} global properties.");
+                DisplayGlobalProperties(selectedSession.GlobalProperties);
+            }
+            else
+            {
+                LogManager.AppendLog("⚠️ No global properties available.");
+                detailsTextBox.AppendText($"⚠️ No global properties available.{Environment.NewLine}");
+            }
+
+            // Ensure a valid result node is selected
+            if (e.Node.Level == 2)
             {
                 string selectedResultPath = e.Node.FullPath;
+                LogManager.AppendLog($"🔍 Full Path of Selected Node: {selectedResultPath}");
+
                 var resultData = FindResultData(selectedResultPath);
 
                 if (resultData != null)
                 {
+                    LogManager.AppendLog($"✅ Result data found for {selectedResultPath}, updating UI.");
+                    detailsTextBox.Clear();
                     DisplayResultDetails(resultData);
-                    LogResultData(resultData); // Ensure this method is called
+                    LogResultData(resultData);
                     DisplayGraph(resultData);
                 }
                 else
                 {
-                    LogManager.AppendLog($"No result data found for the selected item.");
+                    LogManager.AppendLog($"❌ No result data found for {selectedResultPath}.");
                 }
             }
+            else
+            {
+                LogManager.AppendLog($"⚠️ Selected node is not a valid result node. Level: {e.Node.Level}");
+            }
         }
+
         void CreateNewButton_Click(object sender, EventArgs e)
         {
             string sessionTitle = PromptForSessionName();
@@ -769,268 +917,77 @@ namespace LAPxv8
 
             this.Invoke(new MethodInvoker(() => LoadSessions())); // Refresh the list on the UI thread
         }
-        
 
-        
-        
-        
-        
-        private string ExecuteCommand(string command)
-        {
-            ProcessStartInfo processStartInfo = new ProcessStartInfo("cmd", "/c " + command)
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            string output;
-            using (Process process = Process.Start(processStartInfo))
-            {
-                using (StreamReader reader = process.StandardOutput)
-                {
-                    output = reader.ReadToEnd();
-                }
-            }
-
-            return output;
-        }
-        private async Task<bool> CheckStaffStatus()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    LogManager.AppendLog($"Access token is null or empty. Cannot proceed with verification.");
-                    return false;
-                }
-
-                using (var client = new HttpClient())
-                {
-                    client.DefaultRequestHeaders.Clear();
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-                    LogManager.AppendLog($"Authorization header set with access token for verification check.");
-
-                    // Send GET request to the user verification endpoint
-                    var response = await client.GetAsync("https://api.thelyceum.io/api/account/me/");
-                    string content = await response.Content.ReadAsStringAsync();
-                    LogManager.AppendLog($"Verification Response Status: {response.StatusCode}");
-                    LogManager.AppendLog($"Verification Response Content: {content}");
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var json = JsonConvert.DeserializeObject<Dictionary<string, object>>(content);
-                        if (json != null && json.ContainsKey("is_verified"))
-                        {
-                            bool isVerified = json["is_verified"].ToString().ToLower() == "true";
-                            LogManager.AppendLog($"User verified status: {isVerified}");
-                            return isVerified;
-                        }
-                        else
-                        {
-                            LogManager.AppendLog($"Response JSON does not contain 'is_verified' field.");
-                        }
-                    }
-                    else
-                    {
-                        LogManager.AppendLog($"Failed to retrieve verification status. Non-success status code received.");
-                        LogManager.AppendLog(content);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogManager.AppendLog($"Exception occurred while checking Lyceum staff status: {ex.Message}");
-            }
-
-            LogManager.AppendLog(logTextBox, "User is not verified or failed to retrieve verification status.");
-            return false;
-        }
-        private async Task<bool> IsAuthorizedForDecryption()
-        {
-            // Only check the verification status without requiring a key.
-            bool hasStaffStatus = await CheckStaffStatus();
-            return hasStaffStatus;
-        }
-        public async Task<string> DecryptDataAsync(string encryptedData)
-        {
-            bool isAuthorized = await IsAuthorizedForDecryption();
-            if (!isAuthorized)
-            {
-                LogManager.AppendLog(logTextBox, "Authorization failed. Cannot decrypt data.");
-                return null;
-            }
-
-            return Cryptography.DecryptString(systemKey, encryptedData);
-        }
-        private async void FormSessionManager_Load(object sender, EventArgs e)
-        {
-            LogManager.AppendLog($"[FormSessionManager] Loading...");
-
-            try
-            {
-                systemKey = Cryptography.GetOrCreateEncryptionKey();
-                if (string.IsNullOrEmpty(systemKey))
-                {
-                    LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: Encryption key is NULL. Cannot proceed.");
-                    DisableFormControls();
-                    return;
-                }
-
-                LogManager.AppendLog($"[FormSessionManager] ✅ Encryption key retrieved successfully.");
-
-                bool isAuthorized = await IsAuthorizedForDecryption();
-                if (!isAuthorized)
-                {
-                    MessageBox.Show("User not authorized for decryption. Contact Lyceum support.", "Authorization Failed", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
-                    DisableFormControls();
-                    return;
-                }
-
-                LogManager.AppendLog($"[FormSessionManager] ✅ Authorization successful. Loading sessions...");
-                await Task.Run(() => LoadSessions());
-
-                // Adjust form position and size based on parent form
-                AdjustWindowPosition();
-            }
-            catch (Exception ex)
-            {
-                LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: {ex.Message}");
-                MessageBox.Show($"An error occurred during form load: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-            }
-        }
-
-        private void AdjustWindowPosition()
-        {
-            if (formAudioPrecision8 != null)
-            {
-                // Get the bounds of the parent form
-                Rectangle parentBounds = formAudioPrecision8.Bounds;
-
-                // Get the screen the parent form is on
-                Screen parentScreen = Screen.FromControl(formAudioPrecision8);
-
-                // Set the new form size based on available space
-                int width = Math.Min(parentBounds.Width, 1400);
-                int height = Math.Min(parentBounds.Height, 900);
-                this.Size = new Size(width, height);
-
-                // Center the new form relative to the parent
-                this.StartPosition = FormStartPosition.Manual;
-                this.Location = new Point(
-                    parentBounds.Left + (parentBounds.Width - this.Width) / 2,
-                    parentBounds.Top + (parentBounds.Height - this.Height) / 2
-                );
-
-                LogManager.AppendLog($"[AdjustWindowPosition] Form positioned at: {this.Location}, Size: {this.Size}");
-            }
-            else
-            {
-                // If no parent form, use the primary screen
-                Screen primaryScreen = Screen.PrimaryScreen;
-                this.StartPosition = FormStartPosition.CenterScreen;
-                this.Size = new Size(1400, 900);
-                LogManager.AppendLog($"[AdjustWindowPosition] No parent form detected. Defaulting to center screen.");
-            }
-        }
-
-
-        private void DisableFormControls()
-        {
-            // Disable all controls except the log text box to allow viewing logs
-            if (createNewButton != null)
-                createNewButton.Enabled = false;
-
-            if (sessionsListBox != null)
-                sessionsListBox.Enabled = false;
-
-            if (resultsTreeView != null)
-                resultsTreeView.Enabled = false;
-
-            if (detailsTextBox != null)
-                detailsTextBox.Enabled = false;
-
-            if (globalPropertyComboBox != null)
-                globalPropertyComboBox.Enabled = false;
-
-            if (resultDetailComboBox != null)
-                resultDetailComboBox.Enabled = false;
-
-            // Leave logTextBox enabled to display logs even if authorization fails
-            if (logTextBox != null)
-            {
-                logTextBox.Enabled = true;
-                LogManager.AppendLog($"Logs enabled for viewing.");
-            }
-
-            LogManager.AppendLog($"Form controls have been disabled except for logs.");
-        }
 
 
         // Remove this outdated method that references detailsListBox
         private void SessionsListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (sessionsListBox.SelectedIndex != -1)
+            if (sessionsListBox.SelectedIndex == -1)
+                return;
+
+            string selectedTitle = sessionsListBox.SelectedItem?.ToString();
+            if (string.IsNullOrEmpty(selectedTitle))
             {
-                string selectedTitle = sessionsListBox.SelectedItem?.ToString();
-                if (string.IsNullOrEmpty(selectedTitle))
-                {
-                    LogManager.AppendLog("❌ ERROR: Selected session title is null or empty.");
-                    return;
-                }
-
-                var selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
-                if (selectedSession == null)
-                {
-                    LogManager.AppendLog($"❌ ERROR: No session found with title '{selectedTitle}'.");
-                    return;
-                }
-
-                try
-                {
-                    LogManager.AppendLog($"[DEBUG] Selected session: {selectedTitle}");
-
-                    if (string.IsNullOrEmpty(selectedSession.Data))
-                    {
-                        LogManager.AppendLog($"❌ ERROR: Session '{selectedTitle}' has no data.");
-                        return;
-                    }
-
-                    var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
-                    if (sessionData == null)
-                    {
-                        LogManager.AppendLog($"❌ ERROR: JSON deserialization failed for session '{selectedTitle}'.");
-                        return;
-                    }
-
-                    // Validate Global Properties
-                    if (sessionData.GlobalProperties == null || !sessionData.GlobalProperties.Any())
-                    {
-                        LogManager.AppendLog($"⚠ WARNING: GlobalProperties is NULL or EMPTY in session '{selectedTitle}'.");
-                    }
-
-                    // Validate CheckedData
-                    if (sessionData.CheckedData == null || !sessionData.CheckedData.Any())
-                    {
-                        LogManager.AppendLog($"⚠ WARNING: CheckedData is NULL or EMPTY in session '{selectedTitle}'.");
-                    }
-
-                    // Populate UI
-                    PopulateResultsTreeView(sessionData.CheckedData);
-                    LogManager.AppendLog($"✅ Successfully populated ResultsTreeView.");
-                }
-                catch (JsonReaderException ex)
-                {
-                    LogManager.AppendLog($"❌ ERROR: JSON deserialization failed: {ex.Message}");
-                }
-                catch (Exception ex)
-                {
-                    LogManager.AppendLog($"❌ ERROR: Unexpected exception in session selection: {ex.Message}");
-                }
+                LogManager.AppendLog("❌ ERROR: Selected session title is null or empty.");
+                return;
             }
 
-        }
+            var selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
+            if (selectedSession == null)
+            {
+                LogManager.AppendLog($"❌ ERROR: No session found with title '{selectedTitle}'.");
+                return;
+            }
 
+            try
+            {
+                LogManager.AppendLog($"[DEBUG] Selected session: {selectedTitle}");
+
+                if (string.IsNullOrEmpty(selectedSession.Data))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Session '{selectedTitle}' has no data.");
+                    return;
+                }
+
+                var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
+                if (sessionData == null)
+                {
+                    LogManager.AppendLog($"❌ ERROR: JSON deserialization failed for session '{selectedTitle}'.");
+                    return;
+                }
+
+                // ✅ Store GlobalProperties in memory
+                currentGlobalProperties = sessionData.GlobalProperties ?? new Dictionary<string, string>();
+
+                if (currentGlobalProperties.Count > 0)
+                {
+                    LogManager.AppendLog($"✅ Extracted {currentGlobalProperties.Count} Global Properties.");
+                    foreach (var kvp in currentGlobalProperties)
+                    {
+                        LogManager.AppendLog($"🔹 {kvp.Key}: {kvp.Value}");
+                    }
+                }
+                else
+                {
+                    LogManager.AppendLog($"⚠️ No Global Properties found for '{selectedTitle}'.");
+                }
+
+                DisplayGlobalProperties(currentGlobalProperties);
+
+                // ✅ Populate results tree after storing global properties
+                PopulateResultsTreeView(sessionData.CheckedData);
+                LogManager.AppendLog($"✅ Successfully populated ResultsTreeView.");
+            }
+            catch (JsonReaderException ex)
+            {
+                LogManager.AppendLog($"❌ ERROR: JSON deserialization failed: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR: Unexpected exception in session selection: {ex.Message}");
+            }
+        }
         private void PopulateResultsList(List<CheckedData> checkedData)
         {
             detailsTextBox.Clear();
@@ -1046,28 +1003,92 @@ namespace LAPxv8
                 }
             }
         }
-        private void DisplayGlobalProperties(Dictionary<string, string> globalProperties)
+        private Dictionary<string, string> ExtractGlobalPropertiesFromSession(string filePath)
         {
-            detailsTextBox.AppendText($"Global Properties:{Environment.NewLine}");
-            foreach (var prop in globalProperties)
+            try
             {
-                detailsTextBox.AppendText($"{prop.Key}: {prop.Value}{Environment.NewLine}");
+                LogManager.AppendLog($"[ExtractGlobalPropertiesFromSession] Reading session file: {filePath}");
+
+                if (!File.Exists(filePath))
+                {
+                    LogManager.AppendLog($"❌ ERROR: File not found - {filePath}");
+                    return null;
+                }
+
+                string encryptedData = File.ReadAllText(filePath);
+                if (string.IsNullOrEmpty(encryptedData))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Encrypted data in {filePath} is empty.");
+                    return null;
+                }
+
+                string decryptedText = Cryptography.DecryptString(systemKey, encryptedData);
+                if (string.IsNullOrEmpty(decryptedText))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Decryption failed for file: {filePath}");
+                    return null;
+                }
+
+                // Extract only the Global Properties section from JSON
+                var parsedData = JsonConvert.DeserializeObject<SessionData>(decryptedText);
+                if (parsedData?.GlobalProperties == null)
+                {
+                    LogManager.AppendLog("⚠️ No Global Properties found in session.");
+                    return new Dictionary<string, string>(); // Return empty dictionary
+                }
+
+                LogManager.AppendLog($"✅ Extracted {parsedData.GlobalProperties.Count} global properties from session.");
+                return parsedData.GlobalProperties;
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR extracting global properties: {ex.Message}");
+                return null;
             }
         }
+
+        private void DisplayGlobalProperties(Dictionary<string, string> globalProperties)
+        {
+            detailsTextBox.Clear();
+            if (globalProperties == null || globalProperties.Count == 0)
+            {
+                LogManager.AppendLog("⚠️ No Global Properties available to display.");
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("🔹 **Global Properties**");
+
+            foreach (var kvp in globalProperties)
+            {
+                sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+            }
+
+            detailsTextBox.Text = sb.ToString();
+            LogManager.AppendLog("✅ Global Properties displayed in UI.");
+        }
+
         private void DetailsListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (detailsTextBox.SelectedText.Length != 0)
             {
-                // Clear existing details before displaying new ones
                 detailsTextBox.Clear();
 
-                // Display global properties if available
                 var selectedSession = sessions.FirstOrDefault(s => s.Title == sessionsListBox.SelectedItem.ToString());
                 if (selectedSession != null)
                 {
                     LogManager.AppendLog($"Displaying global properties.");
-                    var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
-                    DisplayGlobalProperties(sessionData.GlobalProperties);
+
+                    // ✅ Always reload global properties when a result is selected
+                    if (currentGlobalProperties.Count > 0)
+                    {
+                        LogManager.AppendLog($"✅ Re-displaying {currentGlobalProperties.Count} global properties.");
+                        DisplayGlobalProperties(currentGlobalProperties);
+                    }
+                    else
+                    {
+                        LogManager.AppendLog($"⚠️ No global properties found in stored memory.");
+                    }
                 }
                 else
                 {
@@ -1077,11 +1098,11 @@ namespace LAPxv8
                 string selectedItem = detailsTextBox.SelectedText.ToString();
                 var resultData = FindResultData(selectedItem);
 
-                // Now display result details if available
                 if (resultData != null)
                 {
+                    detailsTextBox.Clear();
                     DisplayResultDetails(resultData);
-                    LogResultData(resultData); // Ensure this method is called
+                    LogResultData(resultData);
                     DisplayGraph(resultData);
                 }
                 else
@@ -1090,6 +1111,7 @@ namespace LAPxv8
                 }
             }
         }
+
         private void LogResultData(ResultData resultData)
         {
             LogManager.AppendLog($"Logging data for result: {resultData.Name}");
@@ -1166,6 +1188,7 @@ namespace LAPxv8
         }
         private void DisplayResultDetails(ResultData result)
         {
+
             detailsTextBox.AppendText(Environment.NewLine);
             // Displaying result details dynamically
             detailsTextBox.AppendText($"Result Details{Environment.NewLine}");

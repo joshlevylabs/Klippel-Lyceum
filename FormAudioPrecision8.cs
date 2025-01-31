@@ -1848,7 +1848,7 @@ namespace LAPxv8
         private void SessionsButton_Click(object sender, EventArgs e)
         {
             string sessionData = GetCurrentFormData();
-            var sessionForm = new FormSessionManager(sessionData, sessionList, SessionMode.View, this, LogManager.AppendLog, accessToken, refreshToken);
+            var sessionForm = new FormSessionManager(sessionData, sessionList, SessionMode.View, this, accessToken, refreshToken);
             sessionForm.ShowDialog();
         }
         private void TestResultsGridMenuItem_Click(object sender, EventArgs e)
