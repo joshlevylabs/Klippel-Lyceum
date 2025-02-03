@@ -30,6 +30,8 @@ using System.Windows.Media.TextFormatting;
 using ScottPlot;
 using ScottPlot.Styles;
 using NAudio.Gui;
+
+
 using static LAPxv8.FormAudioPrecision8;
 using static LAPxv8.FormAPLimitEditor;
 using static LAPxv8.FormSessionManager;
@@ -186,6 +188,52 @@ namespace LAPxv8
             // toolsMenu.DropDownItems.Add(aristotleMenuItem);
         }
 
+        private void InitializeToggleDebugButton()
+        {
+            var toggleDebugButton = new Button
+            {
+                Text = "Show Logs", // Initial text for the button
+                Width = 160, // Adjust width as needed
+                Height = 30, // Adjust height as needed
+                BackColor = System.Drawing.Color.FromArgb(85, 160, 140),
+                ForeColor = System.Drawing.Color.White,
+                FlatStyle = FlatStyle.Flat,
+                FlatAppearance = { BorderSize = 0 },
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left, // Anchor it to the bottom-left
+            };
+            ApplyRoundedCorners(toggleDebugButton);
+
+            // Set the position to the bottom left of the form
+            toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
+
+            Controls.Add(toggleDebugButton);
+            toggleDebugButton.BringToFront();
+            toggleDebugButton.Click += ToggleDebugPanel_Click;
+
+            // Adjust button position on resize
+            this.Resize += (s, e) =>
+            {
+                toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
+            };
+        }
+
+        private void ToggleDebugPanel_Click(object sender, EventArgs e)
+        {
+            debugPanel.Visible = !debugPanel.Visible;
+
+            var toggleDebugButton = sender as Button;
+            if (debugPanel.Visible)
+            {
+                toggleDebugButton.Text = "Hide Logs";
+            }
+            else
+            {
+                toggleDebugButton.Text = "Show Logs";
+            }
+
+            // Reposition button after toggle
+            toggleDebugButton.Location = new Point((this.ClientSize.Width - toggleDebugButton.Width) / 2, this.ClientSize.Height - toggleDebugButton.Height - 20);
+        }
 
         private void OpenPinboardMenuItem_Click(object sender, EventArgs e)
         {
@@ -864,53 +912,7 @@ namespace LAPxv8
             }
         }
 
-        private void InitializeToggleDebugButton()
-        {
-            var toggleDebugButton = new Button
-            {
-                Text = "Show Logs", // Initial text for the button
-                Width = 160, // Adjust width as needed
-                Height = 30, // Adjust height as needed
-                BackColor = System.Drawing.Color.FromArgb(85, 160, 140),
-                ForeColor = System.Drawing.Color.White,
-                FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Left, // Anchor it to the bottom-left
-            };
-            ApplyRoundedCorners(toggleDebugButton);
-
-            // Set the position to the bottom left of the form
-            toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
-
-            Controls.Add(toggleDebugButton);
-            toggleDebugButton.BringToFront();
-            toggleDebugButton.Click += ToggleDebugPanel_Click;
-
-            // Adjust button position on resize
-            this.Resize += (s, e) =>
-            {
-                toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
-            };
-        }
-
-        private void ToggleDebugPanel_Click(object sender, EventArgs e)
-        {
-            debugPanel.Visible = !debugPanel.Visible;
-
-            var toggleDebugButton = sender as Button;
-            if (debugPanel.Visible)
-            {
-                toggleDebugButton.Text = "Hide Logs";
-            }
-            else
-            {
-                toggleDebugButton.Text = "Show Logs";
-            }
-
-            // Reposition button after toggle
-            toggleDebugButton.Location = new Point((this.ClientSize.Width - toggleDebugButton.Width) / 2, this.ClientSize.Height - toggleDebugButton.Height - 20);
-        }
-
+        
         private void TestResultsGrid_Load(object sender, EventArgs e)
         {
             mainPanel.SplitterDistance = 335; // Adjust this value to get the desired width for the left panel
@@ -3213,8 +3215,6 @@ namespace LAPxv8
         {
             addButton.Enabled = testSelectionComboBox.SelectedIndex != -1;
         }
-
-
 
         private GroupBox CreateTestGroupBox()
         {

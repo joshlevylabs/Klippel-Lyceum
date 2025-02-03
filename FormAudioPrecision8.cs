@@ -21,7 +21,6 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 
 
-
 namespace LAPxv8
 {
     public partial class FormAudioPrecision8 : BaseForm
@@ -1627,6 +1626,8 @@ namespace LAPxv8
         {
             try
             {
+                LogManager.AppendLog("Download Data button clicked.");
+
                 SaveFileDialog saveFileDialog = new SaveFileDialog
                 {
                     Filter = "JSON files (*.json)|*.json|Excel files (*.xlsx)|*.xlsx",
@@ -1638,21 +1639,168 @@ namespace LAPxv8
                     string filePath = saveFileDialog.FileName;
                     string fileExtension = Path.GetExtension(filePath).ToLower();
 
+                    LogManager.AppendLog($"User selected file path: {filePath}");
+                    LogManager.AppendLog($"File extension detected: {fileExtension}");
+
                     if (fileExtension == ".json")
                     {
+                        LogManager.AppendLog("Initiating JSON download...");
                         DownloadDataAsJson(filePath);
+                        LogManager.AppendLog("JSON download completed.");
                     }
                     else if (fileExtension == ".xlsx")
                     {
+                        LogManager.AppendLog("Initiating Excel (.xlsx) download...");
                         DownloadDataAsExcel(filePath);
+                        LogManager.AppendLog("Excel download completed.");
                     }
+                    else
+                    {
+                        LogManager.AppendLog($"Unsupported file format selected: {fileExtension}");
+                    }
+                }
+                else
+                {
+                    LogManager.AppendLog("Save dialog was canceled by the user.");
                 }
             }
             catch (Exception ex)
             {
+                LogManager.AppendLog($"Error in DownloadJsonButton_Click: {ex.Message}");
                 MessageBox.Show($"An error occurred: {ex.Message}");
             }
         }
+
+        private void DownloadDataAsExcel(string filePath)
+        {
+            try
+            {
+                LogManager.AppendLog($"Starting Excel export to: {filePath}");
+
+                using (var workbook = new XLWorkbook())
+                {
+                    LogManager.AppendLog("Creating GlobalProperties worksheet...");
+                    var propertiesSheet = workbook.Worksheets.Add("GlobalProperties");
+                    int rowIndex = 1;
+                    foreach (var kvp in ParsePropertiesToDictionary(propertiesTextBox.Text))
+                    {
+                        propertiesSheet.Cell(rowIndex, 1).Value = kvp.Key;
+                        propertiesSheet.Cell(rowIndex, 2).Value = kvp.Value;
+                        rowIndex++;
+                    }
+                    LogManager.AppendLog("GlobalProperties worksheet created successfully.");
+
+                    var sheetNames = new HashSet<string>();
+
+                    LogManager.AppendLog($"Processing {checkedData.Count} signal paths...");
+                    foreach (var signalPath in checkedData)
+                    {
+                        LogManager.AppendLog($"Processing Signal Path: {signalPath.Name}");
+
+                        foreach (var measurement in signalPath.Measurements)
+                        {
+                            LogManager.AppendLog($"Processing Measurement: {measurement.Name}");
+
+                            foreach (var result in measurement.Results)
+                            {
+                                LogManager.AppendLog($"Processing Result: {result.Name}");
+
+                                var sequenceResult = GetSequenceResult(result);
+                                result.ResultValueType = DetermineResultValuesType(sequenceResult);
+
+                                string abbreviatedSheetName = AbbreviateSheetName(result.Name, sheetNames);
+                                sheetNames.Add(abbreviatedSheetName);
+
+                                var resultSheet = workbook.Worksheets.Add(abbreviatedSheetName);
+                                LogManager.AppendLog($"Created worksheet: {abbreviatedSheetName}");
+
+                                resultSheet.Cell(1, 1).Value = "Full Name:";
+                                resultSheet.Cell(1, 2).Value = result.Name;
+
+                                if (result.ResultValueType == "XY Values")
+                                {
+                                    if (result.XValues == null) result.XValues = new double[0];
+                                    if (result.YValuesPerChannel == null) result.YValuesPerChannel = new Dictionary<string, double[]>();
+
+                                    resultSheet.Cell(2, 1).Value = "X Values";
+                                    int colIndex = 2;
+                                    foreach (var channel in result.YValuesPerChannel.Keys)
+                                    {
+                                        resultSheet.Cell(2, colIndex).Value = $"Y Values ({channel})";
+                                        colIndex++;
+                                    }
+
+                                    LogManager.AppendLog($"Writing {result.XValues.Length} X-values and {result.YValuesPerChannel.Count} Y-values...");
+                                    for (int i = 0; i < result.XValues.Length; i++)
+                                    {
+                                        resultSheet.Cell(i + 3, 1).SetValue(SanitizeNumber(result.XValues[i]));
+                                        colIndex = 2;
+                                        foreach (var yValues in result.YValuesPerChannel.Values)
+                                        {
+                                            if (i < yValues.Length)
+                                            {
+                                                resultSheet.Cell(i + 3, colIndex).SetValue(SanitizeNumber(yValues[i]));
+                                            }
+                                            colIndex++;
+                                        }
+                                    }
+                                }
+                                else if (result.ResultValueType == "Meter Values")
+                                {
+                                    if (result.MeterValues == null) result.MeterValues = new double[0];
+                                    if (result.MeterUpperLimitValues == null) result.MeterUpperLimitValues = new double[0];
+                                    if (result.MeterLowerLimitValues == null) result.MeterLowerLimitValues = new double[0];
+
+                                    resultSheet.Cell(2, 1).Value = "Channel";
+                                    resultSheet.Cell(2, 2).Value = "Meter Value";
+                                    resultSheet.Cell(2, 3).Value = "Upper Limit";
+                                    resultSheet.Cell(2, 4).Value = "Lower Limit";
+
+                                    LogManager.AppendLog($"Writing {result.MeterValues.Length} Meter Values...");
+
+                                    for (int i = 0; i < result.MeterValues.Length; i++)
+                                    {
+                                        resultSheet.Cell(i + 3, 1).Value = $"Ch {i + 1}";
+                                        resultSheet.Cell(i + 3, 2).SetValue(SanitizeNumber(result.MeterValues[i]));
+
+                                        if (i < result.MeterUpperLimitValues.Length)
+                                        {
+                                            resultSheet.Cell(i + 3, 3).SetValue(SanitizeNumber(result.MeterUpperLimitValues[i]));
+                                        }
+
+                                        if (i < result.MeterLowerLimitValues.Length)
+                                        {
+                                            resultSheet.Cell(i + 3, 4).SetValue(SanitizeNumber(result.MeterLowerLimitValues[i]));
+                                        }
+                                    }
+                                }
+
+                                LogManager.AppendLog($"Completed writing data for Result: {result.Name}");
+                            }
+                        }
+                    }
+
+                    workbook.SaveAs(filePath);
+                    LogManager.AppendLog($"Excel file saved successfully at {filePath}");
+
+                    MessageBox.Show("Data has been downloaded successfully.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"Error in DownloadDataAsExcel: {ex.Message}");
+                LogManager.AppendLog($"StackTrace: {ex.StackTrace}");
+            }
+        }
+
+        private XLCellValue SanitizeNumber(double value)
+        {
+            if (double.IsNaN(value)) return "NaN";
+            if (double.IsPositiveInfinity(value)) return "Infinity";
+            if (double.IsNegativeInfinity(value)) return "-Infinity";
+            return value;
+        }
+
         private void DownloadDataAsJson(string filePath)
         {
             // Parse properties text into a dictionary
@@ -1688,83 +1836,6 @@ namespace LAPxv8
             // Save the serialized data to a file
             File.WriteAllText(filePath, serializedData);
             MessageBox.Show("Data has been downloaded successfully.");
-        }
-        private void DownloadDataAsExcel(string filePath)
-        {
-            using (var workbook = new XLWorkbook())
-            {
-                // Create a worksheet for global properties
-                var propertiesSheet = workbook.Worksheets.Add("GlobalProperties");
-                int rowIndex = 1;
-                foreach (var kvp in ParsePropertiesToDictionary(propertiesTextBox.Text))
-                {
-                    propertiesSheet.Cell(rowIndex, 1).Value = kvp.Key;
-                    propertiesSheet.Cell(rowIndex, 2).Value = kvp.Value;
-                    rowIndex++;
-                }
-
-                var sheetNames = new HashSet<string>(); // To ensure unique sheet names
-
-                foreach (var signalPath in checkedData)
-                {
-                    foreach (var measurement in signalPath.Measurements)
-                    {
-                        foreach (var result in measurement.Results)
-                        {
-                            var sequenceResult = GetSequenceResult(result);
-                            result.ResultValueType = DetermineResultValuesType(sequenceResult);
-
-                            // Abbreviate the sheet name and ensure uniqueness
-                            string abbreviatedSheetName = AbbreviateSheetName(result.Name, sheetNames);
-                            sheetNames.Add(abbreviatedSheetName);
-
-                            // Create a worksheet for each result
-                            var resultSheet = workbook.Worksheets.Add(abbreviatedSheetName);
-
-                            // Add full name at the top of the sheet
-                            resultSheet.Cell(1, 1).Value = "Full Name:";
-                            resultSheet.Cell(1, 2).Value = result.Name;
-
-                            // Ensure XValues and YValuesPerChannel are not null
-                            if (result.XValues == null)
-                            {
-                                result.XValues = new double[0];
-                            }
-                            if (result.YValuesPerChannel == null)
-                            {
-                                result.YValuesPerChannel = new Dictionary<string, double[]>();
-                            }
-
-                            // Add columns for X and Y values
-                            resultSheet.Cell(2, 1).Value = "X Values";
-                            int colIndex = 2;
-                            foreach (var channel in result.YValuesPerChannel.Keys)
-                            {
-                                resultSheet.Cell(2, colIndex).Value = $"Y Values ({channel})";
-                                colIndex++;
-                            }
-
-                            // Add data to worksheet
-                            for (int i = 0; i < result.XValues.Length; i++)
-                            {
-                                resultSheet.Cell(i + 3, 1).Value = result.XValues[i];
-                                colIndex = 2;
-                                foreach (var yValues in result.YValuesPerChannel.Values)
-                                {
-                                    if (i < yValues.Length)
-                                    {
-                                        resultSheet.Cell(i + 3, colIndex).Value = yValues[i];
-                                    }
-                                    colIndex++;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                workbook.SaveAs(filePath);
-                MessageBox.Show("Data has been downloaded successfully.");
-            }
         }
         private void RunScriptButton_Click(object sender, EventArgs e)
         {
