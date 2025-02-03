@@ -31,9 +31,17 @@ using ScottPlot;
 using ScottPlot.Styles;
 using NAudio.Gui;
 
+
+using static LAPxv8.FormAudioPrecision8;
+using static LAPxv8.FormAPLimitEditor;
+using static LAPxv8.FormSessionManager;
+using static LAPxv8.FormLyceumDataViewer;
+using static LAPxv8.FormLyceumLimitImport;
+using static LAPxv8.FormTestResultsGrid;
+
 namespace LAPxv8
 {
-    public partial class TestResultsGrid : BaseForm
+    public partial class FormTestResultsGrid : BaseForm
     {
         // Your existing variables and controls
         private ComboBox testSelectionComboBox;
@@ -76,8 +84,9 @@ namespace LAPxv8
         private static event EventHandler<string> NewTestResultAdded;
         private static DateTime _lastApiCall = DateTime.MinValue;
         private static readonly TimeSpan _minTimeBetweenCalls = TimeSpan.FromSeconds(2);
+
         public string SystemKey { get; private set; }
-        public TestResultsGrid(FormAudioPrecision8 form)
+        public FormTestResultsGrid(FormAudioPrecision8 form)
 
         {
 
@@ -109,7 +118,7 @@ namespace LAPxv8
 
             InitializeToggleDebugButton();  // Initialize the Toggle Debug Button
 
-            LogDebug("Initialization complete.");
+            Log("Initialization complete.");
         }
 
         private void ShowComparisonVisualization_Click(object sender, EventArgs e)
@@ -179,6 +188,52 @@ namespace LAPxv8
             // toolsMenu.DropDownItems.Add(aristotleMenuItem);
         }
 
+        private void InitializeToggleDebugButton()
+        {
+            var toggleDebugButton = new Button
+            {
+                Text = "Show Logs", // Initial text for the button
+                Width = 160, // Adjust width as needed
+                Height = 30, // Adjust height as needed
+                BackColor = System.Drawing.Color.FromArgb(85, 160, 140),
+                ForeColor = System.Drawing.Color.White,
+                FlatStyle = FlatStyle.Flat,
+                FlatAppearance = { BorderSize = 0 },
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left, // Anchor it to the bottom-left
+            };
+            ApplyRoundedCorners(toggleDebugButton);
+
+            // Set the position to the bottom left of the form
+            toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
+
+            Controls.Add(toggleDebugButton);
+            toggleDebugButton.BringToFront();
+            toggleDebugButton.Click += ToggleDebugPanel_Click;
+
+            // Adjust button position on resize
+            this.Resize += (s, e) =>
+            {
+                toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
+            };
+        }
+
+        private void ToggleDebugPanel_Click(object sender, EventArgs e)
+        {
+            debugPanel.Visible = !debugPanel.Visible;
+
+            var toggleDebugButton = sender as Button;
+            if (debugPanel.Visible)
+            {
+                toggleDebugButton.Text = "Hide Logs";
+            }
+            else
+            {
+                toggleDebugButton.Text = "Show Logs";
+            }
+
+            // Reposition button after toggle
+            toggleDebugButton.Location = new Point((this.ClientSize.Width - toggleDebugButton.Width) / 2, this.ClientSize.Height - toggleDebugButton.Height - 20);
+        }
 
         private void OpenPinboardMenuItem_Click(object sender, EventArgs e)
         {
@@ -303,20 +358,20 @@ namespace LAPxv8
         {
             try
             {
-                LogDebug("Starting deserialization of JSON data.");
-                LogDebug($"Raw JSON Data: {jsonData}");
+                Log("Starting deserialization of JSON data.");
+                Log($"Raw JSON Data: {jsonData}");
 
                 var topLevelData = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonData);
 
                 if (topLevelData == null)
                 {
-                    LogDebug("Top-level deserialized data is null.");
+                    Log("Top-level deserialized data is null.");
                     return;
                 }
 
                 if (!topLevelData.ContainsKey("Data"))
                 {
-                    LogDebug("Key 'Data' not found in top-level deserialized data.");
+                    Log("Key 'Data' not found in top-level deserialized data.");
                     return;
                 }
 
@@ -327,18 +382,18 @@ namespace LAPxv8
 
                 if (deserializedData == null)
                 {
-                    LogDebug("Deserialized nested data is null.");
+                    Log("Deserialized nested data is null.");
                     return;
                 }
 
-                LogDebug("Nested data deserialized successfully.");
+                Log("Nested data deserialized successfully.");
 
                 int startCol = 3;  // Start from column C
 
                 // Add GlobalProperties
                 if (deserializedData.ContainsKey("GlobalProperties"))
                 {
-                    LogDebug("Processing GlobalProperties.");
+                    Log("Processing GlobalProperties.");
                     worksheet.Cells[1, 1].Value = "Global Properties";
                     int row = 2;
                     var globalProperties = deserializedData["GlobalProperties"] as JObject;
@@ -352,13 +407,13 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogDebug("GlobalProperties not found in deserialized data.");
+                    Log("GlobalProperties not found in deserialized data.");
                 }
 
                 // Add CheckedData
                 if (deserializedData.ContainsKey("CheckedData"))
                 {
-                    LogDebug("Processing CheckedData.");
+                    Log("Processing CheckedData.");
                     var checkedDataList = deserializedData["CheckedData"] as JArray;
 
                     foreach (var checkedData in checkedDataList)
@@ -462,15 +517,15 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogDebug("CheckedData not found in deserialized data.");
+                    Log("CheckedData not found in deserialized data.");
                 }
 
                 worksheet.Cells.AutoFitColumns();
-                LogDebug("Finished writing data to worksheet and autofitting columns.");
+                Log("Finished writing data to worksheet and autofitting columns.");
             }
             catch (Exception ex)
             {
-                LogDebug($"Failed to deserialize and add data to worksheet: {ex.Message}");
+                Log($"Failed to deserialize and add data to worksheet: {ex.Message}");
             }
         }
 
@@ -478,20 +533,20 @@ namespace LAPxv8
         {
             try
             {
-                LogDebug("Starting deserialization of JSON data for failures only.");
-                LogDebug($"Raw JSON Data: {jsonData}");
+                Log("Starting deserialization of JSON data for failures only.");
+                Log($"Raw JSON Data: {jsonData}");
 
                 var topLevelData = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonData);
 
                 if (topLevelData == null)
                 {
-                    LogDebug("Top-level deserialized data is null.");
+                    Log("Top-level deserialized data is null.");
                     return;
                 }
 
                 if (!topLevelData.ContainsKey("Data"))
                 {
-                    LogDebug("Key 'Data' not found in top-level deserialized data.");
+                    Log("Key 'Data' not found in top-level deserialized data.");
                     return;
                 }
 
@@ -502,18 +557,18 @@ namespace LAPxv8
 
                 if (deserializedData == null)
                 {
-                    LogDebug("Deserialized nested data is null.");
+                    Log("Deserialized nested data is null.");
                     return;
                 }
 
-                LogDebug("Nested data deserialized successfully.");
+                Log("Nested data deserialized successfully.");
 
                 int startCol = 3;  // Start from column C
 
                 // Add GlobalProperties
                 if (deserializedData.ContainsKey("GlobalProperties"))
                 {
-                    LogDebug("Processing GlobalProperties.");
+                    Log("Processing GlobalProperties.");
                     worksheet.Cells[1, 1].Value = "Global Properties";
                     int row = 2;
                     var globalProperties = deserializedData["GlobalProperties"] as JObject;
@@ -527,13 +582,13 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogDebug("GlobalProperties not found in deserialized data.");
+                    Log("GlobalProperties not found in deserialized data.");
                 }
 
                 // Add CheckedData
                 if (deserializedData.ContainsKey("CheckedData"))
                 {
-                    LogDebug("Processing CheckedData for failures.");
+                    Log("Processing CheckedData for failures.");
                     var checkedDataList = deserializedData["CheckedData"] as JArray;
 
                     foreach (var checkedData in checkedDataList)
@@ -644,15 +699,15 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogDebug("CheckedData not found in deserialized data.");
+                    Log("CheckedData not found in deserialized data.");
                 }
 
                 worksheet.Cells.AutoFitColumns();
-                LogDebug("Finished writing data to worksheet and autofitting columns.");
+                Log("Finished writing data to worksheet and autofitting columns.");
             }
             catch (Exception ex)
             {
-                LogDebug($"Failed to deserialize and add data to worksheet: {ex.Message}");
+                Log($"Failed to deserialize and add data to worksheet: {ex.Message}");
             }
         }
 
@@ -665,7 +720,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Failed to deserialize test data: {ex.Message}");
+                Log($"Failed to deserialize test data: {ex.Message}");
                 return null;
             }
         }
@@ -723,7 +778,7 @@ namespace LAPxv8
             // Clear the debug logs if necessary
             debugTextBox.Clear();
 
-            LogDebug("Started a new test results grid.");
+            Log("Started a new test results grid.");
         }
 
         private void SaveTestConfiguration(string filePath)
@@ -851,73 +906,27 @@ namespace LAPxv8
                         string key = GenerateStatusKey(rowIndex, testResultsTable.Columns.IndexOf(column.ColumnName));
                         string value = testResultsTable.Rows[rowIndex][column.ColumnName].ToString();
                         testResultsStatus[key] = value;
-                        LogDebug($"Saving status - Key: {key}, Value: {value}");
+                        Log($"Saving status - Key: {key}, Value: {value}");
                     }
                 }
             }
         }
 
-        private void InitializeToggleDebugButton()
-        {
-            var toggleDebugButton = new Button
-            {
-                Text = "Show Logs", // Initial text for the button
-                Width = 160, // Adjust width as needed
-                Height = 30, // Adjust height as needed
-                BackColor = System.Drawing.Color.FromArgb(85, 160, 140),
-                ForeColor = System.Drawing.Color.White,
-                FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Left, // Anchor it to the bottom-left
-            };
-            ApplyRoundedCorners(toggleDebugButton);
-
-            // Set the position to the bottom left of the form
-            toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
-
-            Controls.Add(toggleDebugButton);
-            toggleDebugButton.BringToFront();
-            toggleDebugButton.Click += ToggleDebugPanel_Click;
-
-            // Adjust button position on resize
-            this.Resize += (s, e) =>
-            {
-                toggleDebugButton.Location = new Point(20, this.ClientSize.Height - toggleDebugButton.Height - 20);
-            };
-        }
-
-        private void ToggleDebugPanel_Click(object sender, EventArgs e)
-        {
-            debugPanel.Visible = !debugPanel.Visible;
-
-            var toggleDebugButton = sender as Button;
-            if (debugPanel.Visible)
-            {
-                toggleDebugButton.Text = "Hide Logs";
-            }
-            else
-            {
-                toggleDebugButton.Text = "Show Logs";
-            }
-
-            // Reposition button after toggle
-            toggleDebugButton.Location = new Point((this.ClientSize.Width - toggleDebugButton.Width) / 2, this.ClientSize.Height - toggleDebugButton.Height - 20);
-        }
-
+        
         private void TestResultsGrid_Load(object sender, EventArgs e)
         {
             mainPanel.SplitterDistance = 335; // Adjust this value to get the desired width for the left panel
 
             // Initialize and retrieve the system key automatically
-            var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null, null);
+            var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null);
             if (string.IsNullOrEmpty(SystemKey))
             {
-                SystemKey = formSessionManager.GetOrCreateEncryptionKey(GetLogTextBox());
-                LogDebug($"SystemKey initialized on load: {(SystemKey != null ? "Success" : "Failed")}");
+                SystemKey = Cryptography.GetOrCreateEncryptionKey();
+                Log($"SystemKey initialized on load: {(SystemKey != null ? "Success" : "Failed")}");
             }
             else
             {
-                LogDebug("SystemKey already initialized.");
+                Log("SystemKey already initialized.");
             }
         }
 
@@ -997,7 +1006,7 @@ namespace LAPxv8
                     if (!response.IsSuccessStatusCode)
                     {
                         string errorResponse = await response.Content.ReadAsStringAsync();
-                        LogDebug($"API Error: {errorResponse}");
+                        Log($"API Error: {errorResponse}");
                         return $"API Error: {errorResponse}";
                     }
 
@@ -1009,7 +1018,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error calling Claude API: {ex.Message}");
+                Log($"Error calling Claude API: {ex.Message}");
                 return $"Error: {ex.Message}";
             }
         }
@@ -1049,7 +1058,7 @@ namespace LAPxv8
         {
             try
             {
-                LogDebug("Starting to create frequency response graphs");
+                Log("Starting to create frequency response graphs");
 
                 var measurementResults = result["Results"] as JArray;
                 if (measurementResults != null)
@@ -1088,7 +1097,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error creating frequency response graphs: {ex.Message}");
+                Log($"Error creating frequency response graphs: {ex.Message}");
             }
         }
 
@@ -1283,7 +1292,7 @@ namespace LAPxv8
                 // Add some spacing after the plot
                 document.Add(new Paragraph("\n"));
 
-                LogDebug($"Successfully added {plotTitle} graph to document");
+                Log($"Successfully added {plotTitle} graph to document");
             }
             finally
             {
@@ -1391,7 +1400,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error in AddFrequencyResponseSection: {ex.Message}");
+                Log($"Error in AddFrequencyResponseSection: {ex.Message}");
                 throw;
             }
         }
@@ -1407,7 +1416,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error adding table cell: {ex.Message}");
+                Log($"Error adding table cell: {ex.Message}");
                 throw;
             }
         }
@@ -1436,13 +1445,22 @@ namespace LAPxv8
             {
                 var testData = JObject.Parse(result.Data);
                 var nestedData = JObject.Parse(testData["Data"].ToString());
+
+                // Ensure CheckedData exists before accessing it
+                if (!nestedData.ContainsKey("CheckedData") || nestedData["CheckedData"] == null)
+                {
+                    Log($"❌ ERROR: 'CheckedData' field is missing or null.");
+                    return null;
+                }
+
                 var checkedData = nestedData["CheckedData"] as JArray;
+
                 var signalPath = checkedData?.FirstOrDefault(d => d["Name"]?.ToString() == "Signal Path1");
                 return signalPath?["Measurements"] as JArray;
             }
             catch (Exception ex)
             {
-                LogDebug($"Error extracting measurements: {ex.Message}");
+                Log($"Error extracting measurements: {ex.Message}");
                 return null;
             }
         }
@@ -1482,7 +1500,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error generating comparison graphs: {ex.Message}");
+                Log($"Error generating comparison graphs: {ex.Message}");
             }
         }
 
@@ -1493,7 +1511,7 @@ namespace LAPxv8
                 var resultName = testResult["Name"]?.ToString();
                 if (string.IsNullOrEmpty(resultName))
                 {
-                    LogDebug("Result name is null or empty");
+                    Log("Result name is null or empty");
                     return;
                 }
 
@@ -1502,7 +1520,7 @@ namespace LAPxv8
 
                 if (xValues == null || yValuesObj == null || !xValues.Any())
                 {
-                    LogDebug($"Missing X or Y values for result {resultName}");
+                    Log($"Missing X or Y values for result {resultName}");
                     return;
                 }
 
@@ -1545,7 +1563,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error processing test result: {ex.Message}");
+                Log($"Error processing test result: {ex.Message}");
             }
         }
 
@@ -1591,7 +1609,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error processing test result section: {ex.Message}");
+                Log($"Error processing test result section: {ex.Message}");
             }
         }
 
@@ -1629,7 +1647,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error processing test data: {ex.Message}");
+                Log($"Error processing test data: {ex.Message}");
             }
         }
 
@@ -1673,7 +1691,7 @@ namespace LAPxv8
             foreach (var measurement in measurements)
             {
                 string measurementName = measurement["Name"].ToString();
-                LogDebug($"Processing measurement: {measurementName}");
+                Log($"Processing measurement: {measurementName}");
 
                 var results = measurement["Results"] as JArray;
                 if (results != null)
@@ -1681,7 +1699,7 @@ namespace LAPxv8
                     foreach (var result in results)
                     {
                         string resultName = result["Name"].ToString();
-                        LogDebug($"Processing result: {resultName}");
+                        Log($"Processing result: {resultName}");
 
                         // Handle frequency response data
                         var xValues = result["XValues"] as JArray;
@@ -1689,22 +1707,22 @@ namespace LAPxv8
 
                         if (xValues != null && yValuesObj != null)
                         {
-                            LogDebug($"Found frequency response data for {measurementName} - {resultName}");
+                            Log($"Found frequency response data for {measurementName} - {resultName}");
                             var frequencies = xValues.Values<double>().ToArray();
-                            LogDebug($"Frequency range: {frequencies.Min()} - {frequencies.Max()} Hz");
+                            Log($"Frequency range: {frequencies.Min()} - {frequencies.Max()} Hz");
 
                             foreach (var channel in yValuesObj.Properties())
                             {
                                 string channelName = $"{measurementName} - {resultName}";
                                 var values = channel.Value.Values<double>().ToArray();
-                                LogDebug($"Channel {channel.Name}: {values.Length} values");
+                                Log($"Channel {channel.Name}: {values.Length} values");
 
                                 if (!comparisonData.ContainsKey(channelName))
                                 {
                                     comparisonData[channelName] = new List<(string, double[], double[])>();
                                 }
                                 comparisonData[channelName].Add((variant, values, frequencies));
-                                LogDebug($"Added data for {variant} to {channelName}");
+                                Log($"Added data for {variant} to {channelName}");
                             }
                         }
 
@@ -1714,7 +1732,7 @@ namespace LAPxv8
                         {
                             string meterName = $"{measurementName} - {resultName}";
                             var values = meterValues.Values<double>().ToArray();
-                            LogDebug($"Found meter values for {meterName}: {values.Length} values");
+                            Log($"Found meter values for {meterName}: {values.Length} values");
 
                             if (!comparisonData.ContainsKey(meterName))
                             {
@@ -1766,7 +1784,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error in frequency response analysis: {ex.Message}");
+                Log($"Error in frequency response analysis: {ex.Message}");
                 document.Add(new Paragraph("Error analyzing frequency response data")
                     .SetFontColor(ColorConstants.RED));
             }
@@ -1845,7 +1863,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error adding variant data to plot: {ex.Message}");
+                    Log($"Error adding variant data to plot: {ex.Message}");
                 }
             }
         }
@@ -1964,7 +1982,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error generating PDF: {ex.Message}");
+                Log($"Error generating PDF: {ex.Message}");
                 MessageBox.Show("Error generating PDF report. See debug log for details.",
                     "PDF Generation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -2005,7 +2023,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error processing variant results: {ex.Message}");
+                    Log($"Error processing variant results: {ex.Message}");
                 }
             }
 
@@ -2039,7 +2057,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error generating variant graphs: {ex.Message}");
+                    Log($"Error generating variant graphs: {ex.Message}");
                 }
             }
         }
@@ -2076,7 +2094,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error adding measurement graph: {ex.Message}");
+                Log($"Error adding measurement graph: {ex.Message}");
             }
         }
 
@@ -2122,10 +2140,10 @@ namespace LAPxv8
         }
         private async Task HandleAristotleInput(string input)
         {
-            LogDebug($"HandleAristotleInput called with input: {input}");
+            Log($"HandleAristotleInput called with input: {input}");
             if (input.ToLower().Contains("generate") && input.ToLower().Contains("report") || input.ToLower().Contains("PDF"))
             {
-                LogDebug("Generating PDF report...");
+                Log("Generating PDF report...");
                 try
                 {
                     GeneratePdfReport(analysisContext);
@@ -2136,7 +2154,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error in report generation: {ex.Message}");
+                    Log($"Error in report generation: {ex.Message}");
                     aristotleChatLog.AppendText("Sorry, there was an error generating the report. Please check the debug log for details.\n\n");
                 }
                 return;
@@ -2166,7 +2184,7 @@ namespace LAPxv8
                         $"Current context about test results:\n{analysisContext}\n\n" +
                         $"User question: {input}";
 
-                    LogDebug("Making API call...");
+                    Log("Making API call...");
                     var aristotle = new Aristotle(this);
                     string response = await CallClaudeAPI(fullPrompt);
 
@@ -2211,7 +2229,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error in HandleAristotleInput: {ex.Message}");
+                    Log($"Error in HandleAristotleInput: {ex.Message}");
                     aristotleChatLog.SelectionFont = new Font(aristotleChatLog.Font, System.Drawing.FontStyle.Bold);
                     aristotleChatLog.AppendText("Aristotle: ");
                     aristotleChatLog.SelectionFont = new Font(aristotleChatLog.Font, System.Drawing.FontStyle.Regular);
@@ -2251,7 +2269,7 @@ namespace LAPxv8
                 }
                 catch (Exception ex)
                 {
-                    LogDebug($"Error processing test result: {ex.Message}");
+                    Log($"Error processing test result: {ex.Message}");
                 }
             };
         }
@@ -2355,7 +2373,7 @@ namespace LAPxv8
             }
 
             // Default case if no specific interpretation is found
-            LogDebug($"No specific interpretation for measurement type: {type}");
+            Log($"No specific interpretation for measurement type: {type}");
             return "Measurement is present but requires interpretation.";
         }
 
@@ -2365,7 +2383,7 @@ namespace LAPxv8
             {
                 if (attachedResults.Count < 2)
                 {
-                    LogDebug("Not enough results for comparison");
+                    Log("Not enough results for comparison");
                     MessageBox.Show("At least two test results are needed for comparison.",
                                   "Not Enough Data",
                                   MessageBoxButtons.OK,
@@ -2373,7 +2391,7 @@ namespace LAPxv8
                     return;
                 }
 
-                LogDebug("Creating comparison visualization...");
+                Log("Creating comparison visualization...");
 
                 if (comparisonForm == null || comparisonForm.IsDisposed)
                 {
@@ -2390,7 +2408,7 @@ namespace LAPxv8
 
                         if (string.IsNullOrEmpty(result.Value?.Data))
                         {
-                            LogDebug($"No data found for variant {variant}");
+                            Log($"No data found for variant {variant}");
                             continue;
                         }
 
@@ -2411,13 +2429,13 @@ namespace LAPxv8
                     }
                     catch (Exception ex)
                     {
-                        LogDebug($"Error processing result for visualization: {ex.Message}");
+                        Log($"Error processing result for visualization: {ex.Message}");
                     }
                 }
 
                 if (!measurementData.Any())
                 {
-                    LogDebug("No measurement data found to visualize");
+                    Log("No measurement data found to visualize");
                     MessageBox.Show("No measurement data found to visualize.",
                                   "No Data",
                                   MessageBoxButtons.OK,
@@ -2429,11 +2447,11 @@ namespace LAPxv8
                 comparisonForm.Show();
                 comparisonForm.BringToFront();
 
-                LogDebug("Comparison visualization created successfully");
+                Log("Comparison visualization created successfully");
             }
             catch (Exception ex)
             {
-                LogDebug($"Error creating comparison visualization: {ex.Message}");
+                Log($"Error creating comparison visualization: {ex.Message}");
                 MessageBox.Show($"Error creating visualization: {ex.Message}",
                               "Error",
                               MessageBoxButtons.OK,
@@ -2520,12 +2538,12 @@ namespace LAPxv8
 
                     if (results != null)
                     {
-                        LogDebug($"Processing {results.Count} frequency response results");
+                        Log($"Processing {results.Count} frequency response results");
 
                         foreach (var result in results)
                         {
                             var measurementName = result["Name"]?.ToString();
-                            LogDebug($"Processing measurement: {measurementName}");
+                            Log($"Processing measurement: {measurementName}");
 
                             // Check if this result has frequency response data
                             var xValues = result["XValues"] as JArray;
@@ -2573,7 +2591,7 @@ namespace LAPxv8
                             }
                             else
                             {
-                                LogDebug($"No measurement data found for {measurementName}");
+                                Log($"No measurement data found for {measurementName}");
                             }
                         }
                     }
@@ -2589,7 +2607,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug($"Error in ProcessFrequencyResponseSection: {ex.Message}\n{ex.StackTrace}");
+                Log($"Error in ProcessFrequencyResponseSection: {ex.Message}\n{ex.StackTrace}");
                 context.AppendLine($"Error processing frequency response: {ex.Message}");
             }
         }
@@ -2842,8 +2860,8 @@ namespace LAPxv8
             StringBuilder context = new StringBuilder();
             context.AppendLine("Signal Path Analysis:");
 
-            LogDebug("Starting data analysis...");
-            LogDebug($"Number of attached results: {attachedResults?.Count ?? 0}");
+            Log("Starting data analysis...");
+            Log($"Number of attached results: {attachedResults?.Count ?? 0}");
 
             if (attachedResults?.Any() ?? false)
             {
@@ -2851,35 +2869,35 @@ namespace LAPxv8
                 {
                     try
                     {
-                        LogDebug($"Processing result data: {result.Value.Data.Substring(0, Math.Min(100, result.Value.Data.Length))}...");
+                        Log($"Processing result data: {result.Value.Data.Substring(0, Math.Min(100, result.Value.Data.Length))}...");
 
                         // First parse the outer JSON structure
                         var testData = JObject.Parse(result.Value.Data);
-                        LogDebug($"Parsed outer JSON structure: {(testData != null ? "Success" : "Failed")}");
+                        Log($"Parsed outer JSON structure: {(testData != null ? "Success" : "Failed")}");
 
                         // Safely get the Data property and parse it
                         var dataProperty = testData.Property("Data");
                         if (dataProperty != null && dataProperty.Value != null)
                         {
                             string dataStr = dataProperty.Value.ToString();
-                            LogDebug($"Extracted data string: {(dataStr.Length > 100 ? dataStr.Substring(0, 100) + "..." : dataStr)}");
+                            Log($"Extracted data string: {(dataStr.Length > 100 ? dataStr.Substring(0, 100) + "..." : dataStr)}");
 
                             var nestedData = JObject.Parse(dataStr);
-                            LogDebug($"Parsed nested data structure: {(nestedData != null ? "Success" : "Failed")}");
+                            Log($"Parsed nested data structure: {(nestedData != null ? "Success" : "Failed")}");
 
                             if (nestedData != null)
                             {
-                                LogDebug("Found nested data. Looking for CheckedData...");
+                                Log("Found nested data. Looking for CheckedData...");
                                 // Safely access CheckedData
                                 var checkedDataProperty = nestedData.Property("CheckedData");
                                 if (checkedDataProperty != null && checkedDataProperty.Value is JArray checkedData)
                                 {
-                                    LogDebug($"Found CheckedData with {checkedData.Count} items");
+                                    Log($"Found CheckedData with {checkedData.Count} items");
 
                                     foreach (JToken data in checkedData)
                                     {
                                         var name = data["Name"]?.ToString();
-                                        LogDebug($"Processing data section: {name}");
+                                        Log($"Processing data section: {name}");
 
                                         if (name == "Signal Path1")
                                         {
@@ -2888,7 +2906,7 @@ namespace LAPxv8
 
                                             if (measurements != null)
                                             {
-                                                LogDebug($"Found {measurements.Count} measurements");
+                                                Log($"Found {measurements.Count} measurements");
 
                                                 // First look for Frequency Response section
                                                 ProcessFrequencyResponseSection(measurements, context);
@@ -2905,7 +2923,7 @@ namespace LAPxv8
                                             }
                                             else
                                             {
-                                                LogDebug("No measurements found in Signal Path1");
+                                                Log("No measurements found in Signal Path1");
                                                 context.AppendLine("\nNo measurement data found.");
                                             }
                                         }
@@ -2913,7 +2931,7 @@ namespace LAPxv8
                                 }
                                 else
                                 {
-                                    LogDebug("No CheckedData found in nested data");
+                                    Log("No CheckedData found in nested data");
                                     context.AppendLine("\nNo measurement data found in the test results.");
                                 }
                             }
@@ -2921,7 +2939,7 @@ namespace LAPxv8
                     }
                     catch (Exception ex)
                     {
-                        LogDebug($"Error parsing test result data: {ex.Message}");
+                        Log($"Error parsing test result data: {ex.Message}");
                         context.AppendLine($"Error analyzing test data: {ex.Message}");
                     }
                 }
@@ -2932,7 +2950,7 @@ namespace LAPxv8
             }
 
             analysisContext = context.ToString();
-            LogDebug("Updated analysis context with detailed measurements");
+            Log("Updated analysis context with detailed measurements");
         }
 
         private string DetermineUnit(string testName)
@@ -3032,14 +3050,14 @@ namespace LAPxv8
             aristotleInputBox = inputTextBox;
             aristotleSubmitButton = submitButton;
 
-            LogDebug("Setting up Aristotle input handlers");
+            Log("Setting up Aristotle input handlers");
 
             // Wire up the enter key event with debug logging
             inputTextBox.KeyDown += async (s, e) =>
             {
                 if (e.KeyCode == Keys.Enter)
                 {
-                    LogDebug($"Enter key pressed with text: {inputTextBox.Text}");
+                    Log($"Enter key pressed with text: {inputTextBox.Text}");
                     e.SuppressKeyPress = true;
                     if (!string.IsNullOrWhiteSpace(inputTextBox.Text))
                     {
@@ -3051,7 +3069,7 @@ namespace LAPxv8
             // Wire up the submit button with debug logging
             submitButton.Click += async (s, e) =>
             {
-                LogDebug($"Submit button clicked with text: {inputTextBox.Text}");
+                Log($"Submit button clicked with text: {inputTextBox.Text}");
                 if (!string.IsNullOrWhiteSpace(inputTextBox.Text))
                 {
                     await HandleAristotleInput(inputTextBox.Text);
@@ -3064,7 +3082,7 @@ namespace LAPxv8
             // Show a simple welcome message without making an API call
             DisplayWelcomeMessage();
 
-            LogDebug("Aristotle components initialization complete");
+            Log("Aristotle components initialization complete");
         }
 
         private void DisplayWelcomeMessage()
@@ -3088,7 +3106,7 @@ namespace LAPxv8
         private void InitializeDynamicInput()
         {
 
-            LogDebug("Initializing dynamic input...");
+            Log("Initializing dynamic input...");
 
             unitNames = new List<string>();
             propertyNames = new List<string>();
@@ -3190,15 +3208,13 @@ namespace LAPxv8
             // Add the split container to the main panel
             mainPanel.Panel2.Controls.Add(rightPanelSplitContainer);
 
-            LogDebug("Initialization complete.");
+            Log("Initialization complete.");
         }
 
         private void TestSelectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             addButton.Enabled = testSelectionComboBox.SelectedIndex != -1;
         }
-
-
 
         private GroupBox CreateTestGroupBox()
         {
@@ -3335,17 +3351,17 @@ namespace LAPxv8
 
         public void AttachTestResult(int rowIndex, int columnIndex, string status, string data, string fileName)
         {
-            LogDebug($"Attaching test result at row {rowIndex}, column {columnIndex}...");
+            Log($"Attaching test result at row {rowIndex}, column {columnIndex}...");
 
             var key = (RowIndex: rowIndex, ColumnIndex: columnIndex);
 
             if (attachedResults == null)
             {
-                LogDebug("Error: 'attachedResults' is null. Initializing 'attachedResults'...");
+                Log("Error: 'attachedResults' is null. Initializing 'attachedResults'...");
                 attachedResults = new Dictionary<(int RowIndex, int ColumnIndex), AttachedResult>();
             }
 
-            LogDebug($"Status: {status}, Data: {data.Substring(0, Math.Min(data.Length, 500))}...");
+            Log($"Status: {status}, Data: {data.Substring(0, Math.Min(data.Length, 500))}...");
 
             attachedResults[key] = new AttachedResult { Status = status, Data = data, FileName = fileName };
 
@@ -3368,7 +3384,7 @@ namespace LAPxv8
                  CreateComparisonVisualization();
              }*/
 
-            LogDebug($"Test result attached to row {rowIndex}, column {columnIndex} successfully.");
+            Log($"Test result attached to row {rowIndex}, column {columnIndex} successfully.");
         }
 
         private void SendTestResultToAristotle(int rowIndex, int columnIndex, string status, string data, string fileName)
@@ -3400,7 +3416,7 @@ namespace LAPxv8
             var rowIndex = selectedCell.RowIndex;
             var columnIndex = selectedCell.ColumnIndex;
 
-            LogDebug("Opening FormAttachTestResults...");
+            Log("Opening FormAttachTestResults...");
 
             // Open the FormAttachTestResults form
             var attachForm = new FormAttachTestResults(rowIndex, columnIndex, resultStatus, this);
@@ -3414,7 +3430,7 @@ namespace LAPxv8
             }
             else
             {
-                LogDebug("No file was selected or attached.");
+                Log("No file was selected or attached.");
             }
         }
 
@@ -3423,7 +3439,7 @@ namespace LAPxv8
             private int rowIndex;
             private int columnIndex;
             private string resultStatus;
-            private TestResultsGrid parentForm;
+            private FormTestResultsGrid parentForm;
             private ComboBox lycFileComboBox;
             private TextBox searchTextBox; // Add this for the search bar
             private List<string> allLycFiles; // Store all .lyc files for filtering
@@ -3432,7 +3448,7 @@ namespace LAPxv8
             public string DecryptedData { get; private set; }
             public string SelectedFileName { get; private set; }
 
-            public FormAttachTestResults(int rowIndex, int columnIndex, string resultStatus, TestResultsGrid parentForm)
+            public FormAttachTestResults(int rowIndex, int columnIndex, string resultStatus, FormTestResultsGrid parentForm)
             {
                 this.rowIndex = rowIndex;
                 this.columnIndex = columnIndex;
@@ -3524,11 +3540,11 @@ namespace LAPxv8
 
                 if (Directory.Exists(lyceumDir))
                 {
-                    parentForm.LogDebug("Loading .lyc files from: " + lyceumDir);
+                    Log("Loading .lyc files from: " + lyceumDir);
                     var lycFiles = Directory.GetFiles(lyceumDir, "*.lyc");
                     foreach (var file in lycFiles)
                     {
-                        parentForm.LogDebug("Found .lyc file: " + file);
+                        Log("Found .lyc file: " + file);
                         allLycFiles.Add(Path.GetFileName(file)); // Add to the full list
                     }
 
@@ -3537,7 +3553,7 @@ namespace LAPxv8
                 }
                 else
                 {
-                    parentForm.LogDebug("Lyceum directory does not exist.");
+                    Log("Lyceum directory does not exist.");
                 }
             }
 
@@ -3556,12 +3572,20 @@ namespace LAPxv8
 
             private void AttachButton_Click(object sender, EventArgs e)
             {
-                var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null, null);
+                var formSessionManager = new FormSessionManager(null, null, SessionMode.View, null, null, null);
 
                 if (string.IsNullOrEmpty(parentForm.SystemKey))
                 {
-                    parentForm.SystemKey = formSessionManager.GetOrCreateEncryptionKey(parentForm.GetLogTextBox());
-                    parentForm.LogDebug($"SystemKey initialized: {(parentForm.SystemKey != null ? "Success" : "Failed")}");
+                    parentForm.SystemKey = Cryptography.GetOrCreateEncryptionKey();
+
+                    if (string.IsNullOrEmpty(parentForm.SystemKey))
+                    {
+                        Log("❌ ERROR: SystemKey retrieval failed. Cannot proceed with decryption.");
+                        MessageBox.Show("Encryption key could not be retrieved. Please try again.", "Decryption Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    Log($"🔑 SystemKey initialized successfully.");
                 }
 
                 if (lycFileComboBox.SelectedItem != null)
@@ -3570,40 +3594,59 @@ namespace LAPxv8
                     var lyceumDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
                     var filePath = Path.Combine(lyceumDir, SelectedFileName);
 
-                    parentForm.LogDebug("Selected file: " + filePath);
-                    parentForm.LogDebug("Attempting to decrypt file...");
+                    Log($"📂 Selected file: {filePath}");
+                    Log("🔄 Attempting to decrypt file...");
 
-                    if (string.IsNullOrEmpty(parentForm.SystemKey))
+                    if (!File.Exists(filePath))
                     {
-                        parentForm.LogDebug("SystemKey is null or empty. Cannot decrypt.");
-                        MessageBox.Show("SystemKey is not set. Decryption cannot proceed.", "Decryption Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        Log("❌ ERROR: File not found.");
+                        MessageBox.Show("Selected file does not exist.", "File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
 
-                    // Validate and decrypt the file
-                    DecryptedData = FormSessionManager.DecryptString(parentForm.SystemKey, File.ReadAllText(filePath), parentForm.GetLogTextBox());
-
-                    if (DecryptedData != null)
+                    // Read encrypted data from file as a string
+                    string encryptedText;
+                    try
                     {
-                        parentForm.LogDebug("File decrypted successfully.");
+                        encryptedText = File.ReadAllText(filePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ ERROR: Failed to read encrypted file: {ex.Message}");
+                        MessageBox.Show($"Error reading file: {ex.Message}", "File Read Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    // Decrypt the file content
+                    DecryptedData = Cryptography.DecryptString(parentForm.SystemKey, encryptedText);
+
+                    if (!string.IsNullOrEmpty(DecryptedData))
+                    {
+                        Log("✅ File decrypted successfully.");
                         this.Close();
                     }
                     else
                     {
-                        parentForm.LogDebug("Failed to decrypt the file.");
-                        MessageBox.Show("Failed to decrypt the file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        Log("❌ ERROR: Failed to decrypt the file.");
+                        MessageBox.Show("Decryption failed. The file may be corrupted or the key is incorrect.", "Decryption Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
+                else
+                {
+                    Log("⚠ WARNING: No file selected for decryption.");
+                    MessageBox.Show("Please select a file to attach.", "Selection Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
+
         }
 
         private void ViewResultsMenuItem_Click(object sender, EventArgs e)
         {
-            LogDebug("ViewResultsMenuItem_Click invoked.");
+            Log("📌 ViewResultsMenuItem_Click invoked.");
 
             if (attachedResults == null)
             {
-                LogDebug("Error: attachedResults is null.");
+                Log("❌ ERROR: attachedResults is null.");
                 MessageBox.Show("Attached results data is not initialized.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -3614,45 +3657,56 @@ namespace LAPxv8
                 var rowIndex = selectedCell.RowIndex;
                 var columnIndex = selectedCell.ColumnIndex;
 
-                LogDebug($"Selected cell at row {rowIndex}, column {columnIndex}.");
+                Log($"📌 Selected cell at row {rowIndex}, column {columnIndex}.");
 
                 var selectedKey = (RowIndex: rowIndex, ColumnIndex: columnIndex);
 
                 if (attachedResults.TryGetValue(selectedKey, out AttachedResult attachedResult))
                 {
-                    LogDebug($"Found attached result for key: {selectedKey}.");
+                    Log($"✅ Found attached result for key: {selectedKey}.");
 
                     try
                     {
-                        // Use the stored file name to construct the file path
                         string directoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
                         string filePath = Path.Combine(directoryPath, attachedResult.FileName);
 
-                        // Log the file path and attached result data
-                        LogDebug($"Loading file: {filePath}");
-                        LogDebug($"Attached result data: {attachedResult.Data.Substring(0, Math.Min(attachedResult.Data.Length, 500))}...");
+                        if (!File.Exists(filePath))
+                        {
+                            Log($"❌ ERROR: File not found - {filePath}");
+                            MessageBox.Show($"The file '{attachedResult.FileName}' does not exist.", "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
 
-                        // Instantiate the FormGridViewResults with the correct parameters
-                        var viewResultsForm = new FormGridViewResults(filePath, this.SystemKey);
+                        if (string.IsNullOrEmpty(SystemKey))
+                        {
+                            SystemKey = Cryptography.GetOrCreateEncryptionKey();
+                            if (string.IsNullOrEmpty(SystemKey))
+                            {
+                                Log("❌ ERROR: Failed to retrieve SystemKey.");
+                                MessageBox.Show("Encryption key is missing. Unable to load results.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+                        }
 
-                        // Show the form non-modally to allow interaction with the parent form
+                        Log($"✅ Opening FormGridViewResults with file path...");
+                        var viewResultsForm = new FormGridViewResults(filePath, SystemKey);
                         viewResultsForm.Show();
                     }
                     catch (Exception ex)
                     {
-                        LogDebug($"An unexpected error occurred: {ex.Message}");
+                        Log($"❌ ERROR: Unexpected exception - {ex.Message}");
                         MessageBox.Show("An unexpected error occurred while loading the result data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
                 else
                 {
-                    LogDebug($"No attached result found for key: {selectedKey}.");
+                    Log($"⚠ No attached result found for key: {selectedKey}.");
                     MessageBox.Show("No attached result found for the selected cell.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else
             {
-                LogDebug("No cell selected.");
+                Log("⚠ No cell selected.");
                 MessageBox.Show("Please select a cell with attached results to view.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -4102,15 +4156,15 @@ namespace LAPxv8
             if (!string.IsNullOrEmpty(unitName))
             {
                 unitNames.Add(unitName);
-                LogDebug($"Adding unit '{unitName}' to Unit ListBox...");
+                Log($"Adding unit '{unitName}' to Unit ListBox...");
                 unitListBox.Items.Add(unitName); // Add to unitListBox
-                LogDebug("Unit added to ListBox.");
+                Log("Unit added to ListBox.");
                 unitTextBox.Clear();
                 UpdateResultsGrid();
             }
             else
             {
-                LogDebug("Unit name was empty, nothing added.");
+                Log("Unit name was empty, nothing added.");
             }
         }
 
@@ -4122,16 +4176,16 @@ namespace LAPxv8
                 propertyNames.Add(propertyName);
                 propertyVariations.Add(new List<string>()); // Initialize the variant list for this property
 
-                LogDebug($"Adding Property: {propertyName}");
+                Log($"Adding Property: {propertyName}");
                 propertyListBox.Items.Add(propertyName); // Add to propertyListBox
 
-                LogDebug($"Property '{propertyName}' added to ListBox.");
+                Log($"Property '{propertyName}' added to ListBox.");
                 propertyTextBox.Clear();
                 UpdateResultsGrid();
             }
             else
             {
-                LogDebug("No property name entered.");
+                Log("No property name entered.");
             }
         }
 
@@ -4144,19 +4198,19 @@ namespace LAPxv8
                 {
                     int selectedIndex = propertyListBox.SelectedIndex;
                     propertyVariations[selectedIndex].Add(variant);
-                    LogDebug($"Adding variant '{variant}' to property '{propertyNames[selectedIndex]}'");
+                    Log($"Adding variant '{variant}' to property '{propertyNames[selectedIndex]}'");
                     propertyVariantListBox.Items.Add(variant); // Add to variantListBox
                     propertyVariantsTextBox.Clear();
                     UpdateResultsGrid();
                 }
                 else
                 {
-                    LogDebug("Variant name was empty, nothing added.");
+                    Log("Variant name was empty, nothing added.");
                 }
             }
             else
             {
-                LogDebug("No property selected for adding variant.");
+                Log("No property selected for adding variant.");
             }
         }
 
@@ -4167,7 +4221,7 @@ namespace LAPxv8
                 int selectedIndex = propertyListBox.SelectedIndex;
 
                 // Debug logging to help diagnose the issue
-                LogDebug($"Selected Index: {selectedIndex}, Property Variations Count: {propertyVariations.Count}");
+                Log($"Selected Index: {selectedIndex}, Property Variations Count: {propertyVariations.Count}");
 
                 // Check to ensure the index is within bounds
                 if (selectedIndex >= 0 && selectedIndex < propertyVariations.Count)
@@ -4180,7 +4234,7 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogDebug("Selected index is out of bounds.");
+                    Log("Selected index is out of bounds.");
                 }
             }
         }
@@ -4265,7 +4319,7 @@ namespace LAPxv8
             if (unitListBox.SelectedIndex != -1)
             {
                 string selectedUnit = unitListBox.SelectedItem.ToString();
-                LogDebug($"Removing unit '{selectedUnit}' from Unit ListBox...");
+                Log($"Removing unit '{selectedUnit}' from Unit ListBox...");
                 unitNames.Remove(selectedUnit);
                 unitListBox.Items.RemoveAt(unitListBox.SelectedIndex);
                 UpdateResultsGrid();
@@ -4277,7 +4331,7 @@ namespace LAPxv8
             if (propertyListBox.SelectedIndex != -1)
             {
                 string selectedProperty = propertyListBox.SelectedItem.ToString();
-                LogDebug($"Removing property '{selectedProperty}' from Property ListBox...");
+                Log($"Removing property '{selectedProperty}' from Property ListBox...");
                 int selectedIndex = propertyListBox.SelectedIndex;
                 propertyNames.RemoveAt(selectedIndex);
                 propertyVariations.RemoveAt(selectedIndex);
@@ -4292,7 +4346,7 @@ namespace LAPxv8
             if (propertyVariantListBox.SelectedIndex != -1 && propertyListBox.SelectedIndex != -1)
             {
                 string selectedVariant = propertyVariantListBox.SelectedItem.ToString();
-                LogDebug($"Removing variant '{selectedVariant}' from Property '{propertyNames[propertyListBox.SelectedIndex]}'...");
+                Log($"Removing variant '{selectedVariant}' from Property '{propertyNames[propertyListBox.SelectedIndex]}'...");
                 int selectedPropertyIndex = propertyListBox.SelectedIndex;
                 propertyVariations[selectedPropertyIndex].Remove(selectedVariant);
                 propertyVariantListBox.Items.RemoveAt(propertyVariantListBox.SelectedIndex);
@@ -4305,7 +4359,7 @@ namespace LAPxv8
             if (testListBox.SelectedIndex != -1)
             {
                 string selectedTest = testListBox.SelectedItem.ToString();
-                LogDebug($"Removing test '{selectedTest}' from Test ListBox...");
+                Log($"Removing test '{selectedTest}' from Test ListBox...");
                 testNames.Remove(selectedTest);
                 testListBox.Items.RemoveAt(testListBox.SelectedIndex);
                 UpdateResultsGrid();
@@ -4343,16 +4397,16 @@ namespace LAPxv8
 
                     try
                     {
-                        LogDebug($"Button clicked at row {e.RowIndex}, column {e.ColumnIndex}.");
+                        Log($"Button clicked at row {e.RowIndex}, column {e.ColumnIndex}.");
 
                         // Access the underlying DataTable directly
                         DataRow dataRow = ((DataRowView)dataGridView.Rows[e.RowIndex].DataBoundItem).Row;
                         string currentValue = dataRow[e.ColumnIndex].ToString();
-                        LogDebug($"Current button text: {currentValue}");
+                        Log($"Current button text: {currentValue}");
 
                         // Determine the next value
                         string nextValue = GetNextResultValue(currentValue);
-                        LogDebug($"Button text should change to: {nextValue}");
+                        Log($"Button text should change to: {nextValue}");
 
                         // Update the underlying data source (DataTable)
                         dataRow[e.ColumnIndex] = nextValue;
@@ -4362,7 +4416,7 @@ namespace LAPxv8
                         cell.Value = nextValue;
                         cell.Style.BackColor = GetButtonColor(nextValue);
                         cell.Style.ForeColor = System.Drawing.Color.White; // Ensure the text color is visible
-                        LogDebug($"Manually updated cell style to: {nextValue}");
+                        Log($"Manually updated cell style to: {nextValue}");
 
                         // Save the status in the dictionary
                         string key = GenerateStatusKey(e.RowIndex, e.ColumnIndex);
@@ -4371,18 +4425,18 @@ namespace LAPxv8
                         // Force the DataGridView to refresh and display the updated cell
                         dataGridView.InvalidateCell(cell); // Invalidate the specific cell to force a repaint
                         dataGridView.Refresh(); // Refresh the entire DataGridView
-                        LogDebug("DataGridView refreshed.");
+                        Log("DataGridView refreshed.");
 
                         // Update the donut chart
                         UpdateDonutChart(); // Add this line
 
                         // Log success
-                        LogDebug($"Success: Button text updated to: {nextValue}");
+                        Log($"Success: Button text updated to: {nextValue}");
 
                     }
                     catch (Exception ex)
                     {
-                        LogDebug($"Error during cell click handling: {ex.Message}");
+                        Log($"Error during cell click handling: {ex.Message}");
                     }
                     finally
                     {
@@ -4483,7 +4537,7 @@ namespace LAPxv8
             }
 
             // Log to verify the style has been applied
-            LogDebug($"Button style updated based on value: {value}");
+            Log($"Button style updated based on value: {value}");
         }
 
         private void CycleButtonValue(DataGridViewButtonCell buttonCell)
@@ -4519,10 +4573,10 @@ namespace LAPxv8
         // Existing code for UpdateResultsGrid() and other methods
         private void UpdateResultsGrid()
         {
-            LogDebug("Starting UpdateResultsGrid...");
+            Log("Starting UpdateResultsGrid...");
             InitializeTestConfig();
 
-            LogDebug("Applying stored statuses to the grid...");
+            Log("Applying stored statuses to the grid...");
             foreach (DataRow row in testResultsTable.Rows)
             {
                 foreach (DataColumn column in testResultsTable.Columns)
@@ -4536,12 +4590,12 @@ namespace LAPxv8
                         if (testResultsStatus.ContainsKey(key))
                         {
                             row[column.ColumnName] = testResultsStatus[key]; // Restore the saved status
-                            LogDebug($"Restored status - Key: {key}, Value: {testResultsStatus[key]}");
+                            Log($"Restored status - Key: {key}, Value: {testResultsStatus[key]}");
                         }
                         else
                         {
                             row[column.ColumnName] = "No Result"; // Default value if not found
-                            LogDebug($"No saved status found for Key: {key}, setting default value.");
+                            Log($"No saved status found for Key: {key}, setting default value.");
                         }
                     }
                 }
@@ -4575,7 +4629,7 @@ namespace LAPxv8
             dataGridView.Refresh(); // Force the grid to refresh and display updated data
 
             UpdateDonutChart(); // Update the chart whenever the grid is updated
-            LogDebug("Finished updating the results grid.");
+            Log("Finished updating the results grid.");
         }
 
         private void InitializeTestConfig()
@@ -4696,11 +4750,10 @@ namespace LAPxv8
         }
 
         // Example of adding a log to the debug window
-        private void LogDebug(string message)
+        private static void Log(string message)
         {
-            debugTextBox.AppendText($"{DateTime.Now}: {message}\r\n");
+            FormAudioPrecision8.LogManager.AppendLog(message);
         }
-
 
         // Utility method to create context menus for list boxes with remove option
         private ContextMenuStrip CreateContextMenuStrip(ListBox listBox, string type)

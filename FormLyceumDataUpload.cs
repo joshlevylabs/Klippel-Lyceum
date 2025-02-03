@@ -14,23 +14,23 @@ using Amazon;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System;
+using static LAPxv8.FormAudioPrecision8;
 
 namespace LAPxv8
 {
-    public partial class FormLyceumDataUpload : Form
+    public partial class FormLyceumDataUpload : BaseForm
     {
         private string accessToken;
         private string refreshToken;
         private string sessionTitle;
         private string sessionData;
-        private TextBox logTextBox; // TextBox to display logs
         private static readonly HttpClient client = new HttpClient(); // HttpClient instance
         private Dictionary<string, JObject> unitDetails = new Dictionary<string, JObject>();
         private Dictionary<string, string> unitMappings = new Dictionary<string, string>();
 
         public FormLyceumDataUpload(string accessToken, string refreshToken, string sessionTitle, string sessionData)
         {
-            InitializeComponents(); // Ensure components are initialized first
+            //InitializeComponents(); // Ensure components are initialized first
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
             this.sessionTitle = sessionTitle;
@@ -45,27 +45,12 @@ namespace LAPxv8
             if (IsDisposed)
                 return;
 
-            Log("Initializing upload form asynchronously.");
+            LogManager.AppendLog("Initializing upload form asynchronously.");
             await Task.Run(() => SaveDataToFile());
             await FetchAWSCredentials();
         }
 
-        private void InitializeComponents()
-        {
-            this.Width = 800;
-            this.Height = 600;
-            this.Text = "Lyceum Data Upload";
 
-            logTextBox = new TextBox
-            {
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                ReadOnly = true,
-                Location = new System.Drawing.Point(10, 10),
-                Size = new System.Drawing.Size(760, 540)
-            };
-            this.Controls.Add(logTextBox);
-        }
 
         private string GetJsonFilePath()
         {
@@ -84,33 +69,15 @@ namespace LAPxv8
                     Directory.CreateDirectory(Path.GetDirectoryName(filePath));
                 }
                 File.WriteAllText(filePath, sessionData);
-                Log($"Data saved to {filePath}");
+                LogManager.AppendLog($"Data saved to {filePath}");
             }
             catch (Exception ex)
             {
-                Log($"Failed to save data: {ex.Message}");
+                LogManager.AppendLog($"Failed to save data: {ex.Message}");
             }
 
-            Log($"Access Token: {accessToken}");
-            Log($"Refresh Token: {refreshToken}");
-        }
-
-        private void Log(string message)
-        {
-            // Check if the call is from a non-UI thread
-            if (logTextBox.InvokeRequired)
-            {
-                // If so, use Invoke to marshal the action to the UI thread
-                logTextBox.Invoke(new MethodInvoker(delegate
-                {
-                    logTextBox.AppendText(message + Environment.NewLine);
-                }));
-            }
-            else
-            {
-                // If already on the UI thread, proceed normally
-                logTextBox.AppendText(message + Environment.NewLine);
-            }
+            LogManager.AppendLog($"Access Token: {accessToken}");
+            LogManager.AppendLog($"Refresh Token: {refreshToken}");
         }
 
         private string GenerateUniqueFolderName()
@@ -130,16 +97,16 @@ namespace LAPxv8
                 if (IsDisposed)
                     return;
 
-                Log($"HTTP Response Status: {response.StatusCode}");
-                Log($"HTTP Response Headers: {response.Headers}");
+                LogManager.AppendLog($"HTTP Response Status: {response.StatusCode}");
+                LogManager.AppendLog($"HTTP Response Headers: {response.Headers}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var awsTokenData = JObject.Parse(responseContent);
-                    Log("Successfully fetched AWS credentials.");
-                    Log($"AWS Access Key ID: {awsTokenData["Credentials"]["AccessKeyId"]}");
-                    Log($"AWS Secret Access Key: {awsTokenData["Credentials"]["SecretAccessKey"]}");
-                    Log($"AWS Session Token: {awsTokenData["Credentials"]["SessionToken"]}");
+                    LogManager.AppendLog("Successfully fetched AWS credentials.");
+                    LogManager.AppendLog($"AWS Access Key ID: {awsTokenData["Credentials"]["AccessKeyId"]}");
+                    LogManager.AppendLog($"AWS Secret Access Key: {awsTokenData["Credentials"]["SecretAccessKey"]}");
+                    LogManager.AppendLog($"AWS Session Token: {awsTokenData["Credentials"]["SessionToken"]}");
 
                     string projectName = PromptForProjectName();
                     if (!string.IsNullOrWhiteSpace(projectName))
@@ -169,25 +136,25 @@ namespace LAPxv8
                     }
                     else
                     {
-                        Log("No project name provided, cancelling operation.");
+                        LogManager.AppendLog("No project name provided, cancelling operation.");
                     }
                 }
                 else
                 {
-                    Log("Failed to fetch AWS credentials.");
-                    Log($"Response Content: {responseContent}");
+                    LogManager.AppendLog("Failed to fetch AWS credentials.");
+                    LogManager.AppendLog($"Response Content: {responseContent}");
                 }
             }
             catch (Exception ex)
             {
                 if (!IsDisposed)
-                    Log($"Error fetching AWS credentials: {ex.Message}");
+                    LogManager.AppendLog($"Error fetching AWS credentials: {ex.Message}");
             }
         }
 
         private string PromptForProjectName()
         {
-            using (Form prompt = new Form())
+            using (BaseForm prompt = new BaseForm(false)) // No menu strip
             {
                 prompt.Width = 500;
                 prompt.Height = 150;
@@ -216,11 +183,11 @@ namespace LAPxv8
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
 
                 File.WriteAllText(GetJsonFilePath(), sessionData);
-                Log($"Updated data saved to {GetJsonFilePath()} with Project Name: {projectName}");
+                LogManager.AppendLog($"Updated data saved to {GetJsonFilePath()} with Project Name: {projectName}");
             }
             catch (Exception ex)
             {
-                Log($"Error updating JSON data: {ex.Message}");
+                LogManager.AppendLog($"Error updating JSON data: {ex.Message}");
             }
         }
 
@@ -245,11 +212,11 @@ namespace LAPxv8
 
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented); // Update the session data
                 File.WriteAllText(GetJsonFilePath(), sessionData); // Save the changes back to file
-                Log("JSON data modified successfully.");
+                LogManager.AppendLog("JSON data modified successfully.");
             }
             catch (Exception ex)
             {
-                Log($"Error modifying JSON data: {ex.Message}");
+                LogManager.AppendLog($"Error modifying JSON data: {ex.Message}");
             }
         }
 
@@ -281,33 +248,33 @@ namespace LAPxv8
                     }
                     else
                     {
-                        Log($"Descriptor '{prop.Name}' does not exist in Lyceum metadata and will not be included.");
+                        LogManager.AppendLog($"Descriptor '{prop.Name}' does not exist in Lyceum metadata and will not be included.");
                     }
                 }
 
                 jsonData["descriptor"] = descriptorArray; // Apply the updated structure to the JSON
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(GetJsonFilePath(), sessionData);
-                Log("Descriptors updated with new format and saved to file.");
+                LogManager.AppendLog("Descriptors updated with new format and saved to file.");
             }
             else
             {
-                Log($"Failed to fetch descriptor UUIDs from Lyceum. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
+                LogManager.AppendLog($"Failed to fetch descriptor UUIDs from Lyceum. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
             }
         }
 
         private async Task ShowGroupSelectionForm()
         {
             string url = "https://api.thelyceum.io/api/organization/groups/";
-            Log($"Request sent to: {url}");
-            Log($"Using token: {accessToken.Substring(0, 15)}...");  // Log part of the token for security
+            LogManager.AppendLog($"Request sent to: {url}");
+            LogManager.AppendLog($"Using token: {accessToken.Substring(0, 15)}...");  // LogManager.AppendLog part of the token for security
 
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
             try
             {
                 var response = await client.GetAsync(url);
-                Log($"Response Status: {response.StatusCode}");
+                LogManager.AppendLog($"Response Status: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -321,17 +288,17 @@ namespace LAPxv8
                     }
                     else
                     {
-                        Log("No group selected.");
+                        LogManager.AppendLog("No group selected.");
                     }
                 }
                 else
                 {
-                    Log("Failed to fetch groups - Unauthorized or endpoint error");
+                    LogManager.AppendLog("Failed to fetch groups - Unauthorized or endpoint error");
                 }
             }
             catch (Exception ex)
             {
-                Log($"Error during group details fetch: {ex.Message}");
+                LogManager.AppendLog($"Error during group details fetch: {ex.Message}");
             }
         }
 
@@ -339,76 +306,54 @@ namespace LAPxv8
         {
             var tcs = new TaskCompletionSource<JObject>();
 
-            var prompt = new Form
+            using (BaseForm prompt = new BaseForm(false)) // No menu strip
             {
-                Width = 500,
-                Height = 400,
-                Text = "Select Group"
-            };
+                prompt.Width = 500;
+                prompt.Height = 400;
+                prompt.Text = "Select Group";
 
-            var label = new Label
-            {
-                Left = 50,
-                Top = 20,
-                Width = 400,
-                Text = "Select a group:"
-            };
+                var label = new Label { Left = 50, Top = 20, Width = 400, Text = "Select a group:" };
+                var searchBox = new TextBox { Left = 50, Top = 50, Width = 400 };
+                var comboBox = new ComboBox
+                {
+                    Left = 50,
+                    Top = 80,
+                    Width = 400,
+                    DropDownStyle = ComboBoxStyle.DropDownList
+                };
+                comboBox.Items.AddRange(groups.Select(g => g["name"].ToString()).ToArray());
 
-            var searchBox = new TextBox
-            {
-                Left = 50,
-                Top = 50,
-                Width = 400
-            };
+                var confirmation = new Button
+                {
+                    Text = "Ok",
+                    Left = 350,
+                    Width = 100,
+                    Top = 110,
+                    DialogResult = DialogResult.OK
+                };
+                confirmation.Click += (sender, e) =>
+                {
+                    var selectedGroup = groups.FirstOrDefault(g => g["name"].ToString() == comboBox.SelectedItem.ToString()) as JObject;
+                    tcs.SetResult(selectedGroup);
+                    prompt.Close();
+                };
 
-            var comboBox = new ComboBox
-            {
-                Left = 50,
-                Top = 80,
-                Width = 400,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            comboBox.Items.AddRange(groups.Select(g => g["name"].ToString()).ToArray());
+                prompt.Controls.Add(comboBox);
+                prompt.Controls.Add(confirmation);
+                prompt.Controls.Add(label);
+                prompt.Controls.Add(searchBox);
+                prompt.AcceptButton = confirmation;
 
-            searchBox.TextChanged += (sender, e) =>
-            {
-                var filteredGroups = groups.Where(g => g["name"].ToString().IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0)
-                                           .Select(g => g["name"].ToString())
-                                           .ToArray();
-                comboBox.Items.Clear();
-                comboBox.Items.AddRange(filteredGroups);
-            };
-
-            var confirmation = new Button
-            {
-                Text = "Ok",
-                Left = 350,
-                Width = 100,
-                Top = 110,
-                DialogResult = DialogResult.OK
-            };
-            confirmation.Click += (sender, e) =>
-            {
-                var selectedGroup = groups.FirstOrDefault(g => g["name"].ToString() == comboBox.SelectedItem.ToString()) as JObject;
-                tcs.SetResult(selectedGroup);
-                prompt.Close();
-            };
-
-            prompt.Controls.Add(comboBox);
-            prompt.Controls.Add(confirmation);
-            prompt.Controls.Add(label);
-            prompt.Controls.Add(searchBox);
-            prompt.AcceptButton = confirmation;
-
-            prompt.ShowDialog();
+                prompt.ShowDialog();
+            }
             return await tcs.Task;
         }
 
         private async Task AppendGroupDetails(JObject matchingGroup)
         {
-            Log($"Group found: {matchingGroup["name"]}");
-            Log($"Group ID: {matchingGroup["id"]}");
-            Log($"Description: {matchingGroup["description"] ?? "No description provided."}");
+            LogManager.AppendLog($"Group found: {matchingGroup["name"]}");
+            LogManager.AppendLog($"Group ID: {matchingGroup["id"]}");
+            LogManager.AppendLog($"Description: {matchingGroup["description"] ?? "No description provided."}");
 
             var jsonData = JObject.Parse(sessionData);
             jsonData["GroupDetails"] = new JObject
@@ -423,7 +368,7 @@ namespace LAPxv8
 
         private void ShowGroupSelectionPrompt(JArray groups)
         {
-            using (Form prompt = new Form())
+            using (BaseForm prompt = new BaseForm())
             {
                 prompt.Width = 600;
                 prompt.Height = 400;
@@ -468,7 +413,7 @@ namespace LAPxv8
         {
             try
             {
-                Log("Starting processing of checked data.");
+                LogManager.AppendLog("Starting processing of checked data.");
 
                 // Step 1: Setup and get initial data
                 (string dataType, string deviceLabel) = SetupDataProcessing();
@@ -481,11 +426,11 @@ namespace LAPxv8
                 // Step 3: Update session data with processed information
                 UpdateSessionData(processedCheckedData);
 
-                Log("Checked data processed and saved to file.");
+                LogManager.AppendLog("Checked data processed and saved to file.");
             }
             catch (Exception ex)
             {
-                Log($"Error processing checked data: {ex.Message}");
+                LogManager.AppendLog($"Error processing checked data: {ex.Message}");
             }
         }
 
@@ -497,7 +442,7 @@ namespace LAPxv8
         }
         private string PromptForDataType()
         {
-            using (Form prompt = new Form())
+            using (BaseForm prompt = new BaseForm())
             {
                 prompt.Width = 300;
                 prompt.Height = 150;
@@ -689,10 +634,10 @@ namespace LAPxv8
             sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
             File.WriteAllText(GetJsonFilePath(), sessionData);
 
-            // Fetch and log unit metadata before final log message
+            // Fetch and LogManager.AppendLog unit metadata before final log message
             await FetchAndLogUnitMetadata();
 
-            Log("Checked data processed, units logged, and saved to file.");
+            LogManager.AppendLog("Checked data processed, units logged, and saved to file.");
         }
 
         private string GetDeviceLabel(JObject jsonData)
@@ -752,41 +697,41 @@ namespace LAPxv8
                         }
 
                         // Logging matched X Units
-                        Log("Matched X Units:");
+                        LogManager.AppendLog("Matched X Units:");
                         foreach (var unit in matchedXUnits.Distinct())
                         {
-                            Log($"{unit["label"]}: {unit.ToString(Newtonsoft.Json.Formatting.None)}");
+                            LogManager.AppendLog($"{unit["label"]}: {unit.ToString(Newtonsoft.Json.Formatting.None)}");
                         }
 
                         // Logging matched Y Units
-                        Log("Matched Y Units:");
+                        LogManager.AppendLog("Matched Y Units:");
                         foreach (var unit in matchedYUnits.Distinct())
                         {
-                            Log($"{unit["label"]}: {unit.ToString(Newtonsoft.Json.Formatting.None)}");
+                            LogManager.AppendLog($"{unit["label"]}: {unit.ToString(Newtonsoft.Json.Formatting.None)}");
                         }
 
-                        // Log unmatched units
+                        // LogManager.AppendLog unmatched units
                         var matchedUnitLabelsAndSymbols = new HashSet<string>(matchedXUnits.Concat(matchedYUnits).SelectMany(u => new[] { u["label"].ToString(), GetFullSymbol(u) }).Where(s => s != null));
                         var unmatchedUnits = allUsedUnits.Except(matchedUnitLabelsAndSymbols);
 
                         if (unmatchedUnits.Any())
                         {
-                            Log("Unmatched Units in JSON Data:");
+                            LogManager.AppendLog("Unmatched Units in JSON Data:");
                             foreach (string unit in unmatchedUnits)
                             {
-                                Log(unit);
+                                LogManager.AppendLog(unit);
                             }
                         }
                     }
                 }
                 else
                 {
-                    Log($"Failed to fetch units metadata. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
+                    LogManager.AppendLog($"Failed to fetch units metadata. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
                 }
             }
             catch (Exception ex)
             {
-                Log($"Error fetching units metadata: {ex.Message}");
+                LogManager.AppendLog($"Error fetching units metadata: {ex.Message}");
             }
         }
 
@@ -805,11 +750,11 @@ namespace LAPxv8
                 var yUnits = metadata["y_units"].Children<JObject>().ToList();
 
                 StoreUnitDetails(xUnits, yUnits);
-                Log("Unit details fetched and stored successfully.");
+                LogManager.AppendLog("Unit details fetched and stored successfully.");
             }
             else
             {
-                Log($"Failed to fetch unit details. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
+                LogManager.AppendLog($"Failed to fetch unit details. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
             }
         }
 
@@ -868,7 +813,7 @@ namespace LAPxv8
 
             sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
             File.WriteAllText(GetJsonFilePath(), sessionData);
-            Log("Units in JSON data replaced with detailed information and copied to Elements section.");
+            LogManager.AppendLog("Units in JSON data replaced with detailed information and copied to Elements section.");
         }
 
         private void ReplaceUnitWithDetails(JObject units, string unitKey)
@@ -884,11 +829,11 @@ namespace LAPxv8
                 if (unitDetails.TryGetValue(unitValue, out JObject unitDetail))
                 {
                     units[unitKey] = unitDetail; // Replace with detailed unit information
-                    Log($"Unit {unitKey} replaced with detailed information.");
+                    LogManager.AppendLog($"Unit {unitKey} replaced with detailed information.");
                 }
                 else
                 {
-                    Log($"No detailed information found for unit {unitKey} with value {unitValue}.");
+                    LogManager.AppendLog($"No detailed information found for unit {unitKey} with value {unitValue}.");
                 }
             }
         }
@@ -944,7 +889,7 @@ namespace LAPxv8
         {
             var tcs = new TaskCompletionSource<string>();
 
-            var prompt = new Form
+            var prompt = new BaseForm
             {
                 Width = 500,
                 Height = 400,
@@ -1052,12 +997,12 @@ namespace LAPxv8
                     jsonData.Remove("CheckedData");
                     sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
                     File.WriteAllText(GetJsonFilePath(), sessionData);
-                    Log("CheckedData removed from session data.");
+                    LogManager.AppendLog("CheckedData removed from session data.");
                 }
             }
             catch (Exception ex)
             {
-                Log($"Error removing CheckedData: {ex.Message}");
+                LogManager.AppendLog($"Error removing CheckedData: {ex.Message}");
             }
         }
 
@@ -1085,8 +1030,8 @@ namespace LAPxv8
                     var uploadResult = await UploadFileAsync(client, bucketName, s3ObjectName, filePath);
                     if (uploadResult.Item1)
                     {
-                        Log($"Successfully uploaded {s3ObjectName} to {bucketName}.");
-                        Log($"File URL: {uploadResult.Item2}");
+                        LogManager.AppendLog($"Successfully uploaded {s3ObjectName} to {bucketName}.");
+                        LogManager.AppendLog($"File URL: {uploadResult.Item2}");
 
                         // Call the API to notify about the upload
                         await NotifyProjectUpload(sessionData, uploadResult.Item2);
@@ -1094,14 +1039,14 @@ namespace LAPxv8
                     }
                     else
                     {
-                        Log("File upload to S3 failed.");
+                        LogManager.AppendLog("File upload to S3 failed.");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Log($"Error uploading file to S3: {ex.Message}");
+                LogManager.AppendLog($"Error uploading file to S3: {ex.Message}");
                 return false;
             }
         }
@@ -1142,11 +1087,11 @@ namespace LAPxv8
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Log("Successfully notified project upload via API.");
+                    LogManager.AppendLog("Successfully notified project upload via API.");
                 }
                 else
                 {
-                    Log($"Failed to notify project upload. Status: {response.StatusCode}. Response: {responseContent}");
+                    LogManager.AppendLog($"Failed to notify project upload. Status: {response.StatusCode}. Response: {responseContent}");
                 }
             }
         }

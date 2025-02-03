@@ -10,6 +10,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using static LAPxv8.FormSessionManager;
+using static LAPxv8.FormAudioPrecision8;
 
 namespace LAPxv8
 {
@@ -34,19 +35,47 @@ namespace LAPxv8
 
             this.systemKey = systemKey;
 
-            // Set the form's properties to match the dark theme
+            // Set form properties
             this.BackColor = Color.FromArgb(45, 45, 45);
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 10);
             this.Size = new Size(1400, 900);
-            this.FormBorderStyle = FormBorderStyle.None; // Remove default title bar
-            this.Icon = this.Icon; // Use the icon set in BaseForm
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.Icon = this.Icon;
 
-            // Initialize UI components
             InitializeComponents();
 
-            // Load the session data
-            LoadSessionData(filePath);
+            // Ensure filePath is valid
+            if (!File.Exists(filePath))
+            {
+                LogManager.AppendLog($"❌ ERROR: Provided file path does not exist: {filePath}");
+                MessageBox.Show($"Invalid file path: {filePath}", "File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Read file content
+            string fileContent = File.ReadAllText(filePath);
+
+            // Check if file is already decrypted
+            if (fileContent.TrimStart().StartsWith("{"))
+            {
+                LogManager.AppendLog($"✅ Data is already decrypted, skipping decryption.");
+                LoadSessionData(filePath, fileContent); // ✅ Now correctly calls the updated method
+            }
+            else
+            {
+                LogManager.AppendLog($"📂 Attempting to load and decrypt file...");
+                string decryptedData = Cryptography.DecryptString(systemKey, fileContent);
+
+                if (string.IsNullOrEmpty(decryptedData))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Decryption failed.");
+                    MessageBox.Show("Decryption failed. Unable to open session.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                LoadSessionData(filePath, decryptedData); // ✅ Now correctly calls the updated method
+            }
         }
 
         private void InitializeComponents()
@@ -271,85 +300,139 @@ namespace LAPxv8
             }
         }
 
-        private void LoadSessionData(string filePath)
+        private void LoadSessionData(string filePath, string decryptedData)
         {
-            LogDebug("Loading session data from file...");
+            LogManager.AppendLog($"📂 Attempting to load session data. File: {filePath}, Data Length: {decryptedData.Length}");
 
             try
             {
-                string encryptedData = File.ReadAllText(filePath);
-                LogDebug($"Encrypted data: {encryptedData.Substring(0, Math.Min(encryptedData.Length, 100))}...");
-
-                // Decrypt the data
-                string decryptedData = DecryptString(systemKey, encryptedData);
-
-                // Deserialize the outer JSON to extract the "Data" field
-                var outerJson = JsonConvert.DeserializeObject<JObject>(decryptedData);
-                var innerDataJson = outerJson["Data"]?.ToString();
-
-                if (innerDataJson != null)
+                if (string.IsNullOrEmpty(decryptedData))
                 {
-                    // Deserialize the inner JSON to your SessionData object
-                    currentSessionData = JsonConvert.DeserializeObject<SessionData>(innerDataJson);
+                    LogManager.AppendLog($"❌ ERROR: Decryption failed or JSON is empty.");
+                    MessageBox.Show("Failed to process session data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                    // Populate the global properties ListBox
-                    if (currentSessionData.GlobalProperties != null)
+                LogManager.AppendLog($"🔍 Full JSON Data:\n{decryptedData}");
+
+                // Deserialize JSON data
+                JObject outerJson;
+                try
+                {
+                    outerJson = JsonConvert.DeserializeObject<JObject>(decryptedData);
+                }
+                catch (JsonException jsonEx)
+                {
+                    LogManager.AppendLog($"❌ ERROR: JSON Parsing failed - {jsonEx.Message}");
+                    MessageBox.Show("Failed to parse session data.", "JSON Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Ensure 'Data' field is properly parsed
+                if (outerJson.ContainsKey("Data"))
+                {
+                    var rawData = outerJson["Data"];
+
+                    if (rawData.Type == JTokenType.String)
                     {
-                        globalPropertyListBox.Items.Clear();
-                        foreach (var property in currentSessionData.GlobalProperties)
+                        try
                         {
-                            globalPropertyListBox.Items.Add($"{property.Key}: {property.Value}");
+                            LogManager.AppendLog($"🔍 Parsing 'Data' as JSON...");
+                            outerJson = JsonConvert.DeserializeObject<JObject>(rawData.ToString());
+                        }
+                        catch (JsonException jsonEx)
+                        {
+                            LogManager.AppendLog($"❌ ERROR: Failed to parse 'Data' field - {jsonEx.Message}");
+                            MessageBox.Show("Session data format is invalid.", "Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
                         }
                     }
+                    else if (rawData.Type == JTokenType.Object)
+                    {
+                        outerJson = rawData as JObject;
+                    }
+                }
 
-                    // Populate the results TreeView
-                    if (currentSessionData.CheckedData != null && currentSessionData.CheckedData.Count > 0)
-                    {
-                        PopulateResultsTreeView(currentSessionData.CheckedData);
-                    }
-                    else
-                    {
-                        LogDebug("Checked Data is null or empty.");
-                        MessageBox.Show("No checked data available in this session.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
-                else
+                // Ensure 'CheckedData' is present
+                if (!outerJson.ContainsKey("CheckedData") || outerJson["CheckedData"] == null)
                 {
-                    LogDebug("Failed to extract 'Data' from the decrypted JSON.");
-                    MessageBox.Show("Failed to load session data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    LogManager.AppendLog($"❌ ERROR: 'CheckedData' is missing or null. Available keys: {string.Join(", ", outerJson.Properties().Select(p => p.Name))}");
+                    MessageBox.Show("Session data does not contain valid results.", "Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
                 }
-            }
-            catch (JsonException jsonEx)
-            {
-                LogDebug($"JSON Parsing Error: {jsonEx.Message}");
-                MessageBox.Show("Failed to parse the result data. Please check the data format.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                // Ensure currentSessionData is initialized
+                if (currentSessionData == null)
+                {
+                    LogManager.AppendLog("❌ ERROR: currentSessionData is null before data assignment.");
+                    currentSessionData = new SessionData();
+                }
+
+                // Deserialize session data into the object
+                currentSessionData = outerJson.ToObject<SessionData>();
+
+                LogManager.AppendLog($"✅ Session data loaded successfully!");
+
+                // Update UI
+                PopulateGlobalProperties();
+                PopulateResultsTreeView(currentSessionData.CheckedData);
             }
             catch (Exception ex)
             {
-                LogDebug($"Unexpected Error: {ex.Message}");
-                MessageBox.Show("An unexpected error occurred while loading the result data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogManager.AppendLog($"❌ ERROR: Unexpected exception - {ex.Message}");
+                MessageBox.Show("An unexpected error occurred while loading session data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        private void PopulateGlobalProperties()
+        {
+            if (currentSessionData == null || currentSessionData.GlobalProperties == null)
+            {
+                LogManager.AppendLog("❌ ERROR: No global properties available.");
+                return;
+            }
+
+            globalPropertyListBox.Items.Clear();
+
+            foreach (var property in currentSessionData.GlobalProperties)
+            {
+                globalPropertyListBox.Items.Add($"{property.Key}: {property.Value}");
+            }
+
+            LogManager.AppendLog($"✅ Global properties updated. Total properties: {globalPropertyListBox.Items.Count}");
+        }
+
+
         private void PopulateResultsTreeView(List<CheckedData> checkedDataList)
         {
+            if (checkedDataList == null || checkedDataList.Count == 0)
+            {
+                LogManager.AppendLog("❌ ERROR: No results data found.");
+                return;
+            }
+
             resultsTreeView.Nodes.Clear();
 
             foreach (var signalPath in checkedDataList)
             {
                 TreeNode signalPathNode = new TreeNode(signalPath.Name);
+
                 foreach (var measurement in signalPath.Measurements)
                 {
                     TreeNode measurementNode = new TreeNode(measurement.Name);
+
                     foreach (var result in measurement.Results)
                     {
                         TreeNode resultNode = new TreeNode(result.Name);
+                        resultNode.Tag = result;  // 🔥 Store result data in the node's Tag property
                         measurementNode.Nodes.Add(resultNode);
                     }
                     signalPathNode.Nodes.Add(measurementNode);
                 }
                 resultsTreeView.Nodes.Add(signalPathNode);
             }
+
+            LogManager.AppendLog($"✅ ResultsTreeView populated. Total paths: {checkedDataList.Count}");
         }
 
         private void FilterResults(bool showPassing)
@@ -387,24 +470,21 @@ namespace LAPxv8
 
         private void ResultsTreeView_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (e.Node.Level == 2) // If a result node is selected
+            if (e.Node?.Tag is AudioPrecisionResultData resultData)
             {
-                string selectedResultPath = e.Node.FullPath;
-                var resultData = FindResultInSessionData(currentSessionData, selectedResultPath);
+                string signalPathName = e.Node.Parent?.Parent?.Text ?? "Unknown Signal Path";
+                string measurementName = e.Node.Parent?.Text ?? "Unknown Measurement";
 
-                if (resultData != null)
-                {
-                    string signalPathName = e.Node.Parent.Parent.Text;
-                    string measurementName = e.Node.Parent.Text;
-                    DisplayResultDetails(resultData);
-                    DisplayGraph(resultData, signalPathName, measurementName);
-                }
-                else
-                {
-                    LogDebug("No result data found for the selected item.");
-                }
+                LogManager.AppendLog($"✅ Found result: {resultData.Name}");
+                DisplayResultDetails(resultData);
+                DisplayGraph(resultData, signalPathName, measurementName);
+            }
+            else
+            {
+                LogManager.AppendLog("❌ No result data found in selected node.");
             }
         }
+
 
         private void DisplayResultDetails(AudioPrecisionResultData result)
         {
@@ -418,7 +498,7 @@ namespace LAPxv8
 
         private void DisplayGraph(AudioPrecisionResultData result, string signalPathName, string measurementName)
         {
-            LogDebug("Attempting to display graph.");
+            LogManager.AppendLog("Attempting to display graph.");
             graphPanel.Controls.Clear();
             Chart chart = new Chart { Dock = DockStyle.Fill };
 
@@ -449,20 +529,20 @@ namespace LAPxv8
             switch (result.ResultValueType)
             {
                 case "XY Values":
-                    LogDebug("Preparing to display XY graph.");
+                    LogManager.AppendLog("Preparing to display XY graph.");
                     DisplayXYGraph(chart, result);
                     break;
                 case "Meter Values":
-                    LogDebug("Preparing to display Meter graph.");
+                    LogManager.AppendLog("Preparing to display Meter graph.");
                     DisplayMeterGraph(chart, result);
                     break;
                 default:
-                    LogDebug($"Unknown ResultValueType: {result.ResultValueType}");
+                    LogManager.AppendLog($"Unknown ResultValueType: {result.ResultValueType}");
                     break;
             }
 
             graphPanel.Controls.Add(chart);
-            LogDebug("Graph display updated.");
+            LogManager.AppendLog("Graph display updated.");
         }
 
         private void DisplayXYGraph(Chart chart, AudioPrecisionResultData result)
@@ -516,7 +596,7 @@ namespace LAPxv8
             string[] parts = path.Split('\\');
             if (parts.Length < 3)
             {
-                LogDebug("Path does not have enough parts to match a result.");
+                LogManager.AppendLog("Path does not have enough parts to match a result.");
                 return null;
             }
 
@@ -534,24 +614,24 @@ namespace LAPxv8
                     {
                         if (result.Name == resultName)
                         {
-                            LogDebug($"Found matching result for {path}.");
+                            LogManager.AppendLog($"Found matching result for {path}.");
                             return result;
                         }
                     }
                 }
             }
 
-            LogDebug($"No matching result found for {path}.");
+            LogManager.AppendLog($"No matching result found for {path}.");
             return null;
         }
 
         private string DecryptString(string key, string cipherText)
         {
-            LogDebug("[DecryptString] Starting decryption process...");
+            LogManager.AppendLog("[DecryptString] Starting decryption process...");
 
             if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(cipherText))
             {
-                LogDebug("[DecryptString] Key or cipherText is null/empty. Aborting decryption.");
+                LogManager.AppendLog("[DecryptString] Key or cipherText is null/empty. Aborting decryption.");
                 return null;
             }
 
@@ -581,7 +661,7 @@ namespace LAPxv8
             }
             catch (Exception ex)
             {
-                LogDebug("[DecryptString] Error during decryption: " + ex.Message);
+                LogManager.AppendLog("[DecryptString] Error during decryption: " + ex.Message);
                 return null;
             }
         }
@@ -720,22 +800,6 @@ namespace LAPxv8
             byte[] resizedKey = new byte[sizeInBytes];
             Array.Copy(originalKey, resizedKey, Math.Min(originalKey.Length, sizeInBytes));
             return resizedKey;
-        }
-
-        public void LogDebug(string message)
-        {
-            // Append the message to the TextBox
-            if (txtLog.InvokeRequired)
-            {
-                txtLog.Invoke(new Action(() => txtLog.AppendText($"{DateTime.Now}: {message}\r\n")));
-            }
-            else
-            {
-                txtLog.AppendText($"{DateTime.Now}: {message}\r\n");
-            }
-
-            // Also write to console or other logging mechanism if needed
-            Console.WriteLine(message); // This is optional; remove if not needed
         }
     }
 

@@ -35,7 +35,7 @@ using DocumentFormat.OpenXml.Presentation;
 
 namespace LAPxv8
 {
-    public partial class FormAPLimitEditor : BaseForm
+    public partial class FormAPLimitEditor : Form
     {
         private APx500 APx = new APx500();
         private string accessToken;
@@ -75,20 +75,33 @@ namespace LAPxv8
         private Button exportToAPxButton;
         private Button deleteLimitButton;
 
-
-
         public FormAPLimitEditor(List<SignalPathData> data, string accessToken, string refreshToken) : base()
         {
-
             this.checkedData = data;
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
-            //InitializeComponent();
 
-            // Get the working area of the primary screen and adjust the size
-            Rectangle workingArea = Screen.PrimaryScreen.WorkingArea;
-            this.Size = new Size(workingArea.Width - 50, workingArea.Height - 50);  // Adjusted size
+            // Set the form's background to grey and text color to white
+            this.BackColor = System.Drawing.Color.FromArgb(60, 60, 60); // Grey background for dark mode
+            this.ForeColor = System.Drawing.Color.White;
+            this.Font = new System.Drawing.Font("Segoe UI", 9);
 
+            // Center the form on the screen
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.Size = new Size(1575, 950);
+            this.FormBorderStyle = FormBorderStyle.None; // Remove default title bar
+
+            // Set the icon
+            string basePath = AppDomain.CurrentDomain.BaseDirectory;
+            string iconPath = Path.Combine(basePath, "Resources", "LAPx.ico");
+            if (File.Exists(iconPath))
+            {
+                this.Icon = new Icon(iconPath);
+            }
+
+            // Initialize components
+            InitializeCustomTitleBar();
+            InitializeMenuStrip();
             InitializeGraphPanel();
             InitializeGraphPreferences();
             InitializeTable();
@@ -97,7 +110,6 @@ namespace LAPxv8
             InitializeChannelTabs();
 
             limitValuesTabControl.Selected += new TabControlEventHandler(limitValuesTabControl_Selected);
-
 
             // Initialize the timer
             updateGraphTimer = new Timer();
@@ -111,32 +123,209 @@ namespace LAPxv8
             yAxisEndTextBox.TextChanged += TextBox_TextChanged;
 
             SetupButtonEventHandlers();
+
+            // Apply dark mode styling to all controls
+            ApplyDarkModeToControls(this.Controls);
+        }
+        private void InitializeCustomTitleBar()
+        {
+            Panel titleBar = new Panel
+            {
+                Name = "TitleBarPanel", // Name for exclusion
+                Dock = DockStyle.Top,
+                Height = 30,
+                BackColor = System.Drawing.Color.FromArgb(30, 30, 30),
+            };
+
+            Label titleLabel = new Label
+            {
+                Text = "LAPx Application",
+                ForeColor = System.Drawing.Color.White,
+                Font = new System.Drawing.Font("Segoe UI", 12, FontStyle.Bold),
+                AutoSize = false,
+                Dock = DockStyle.Left,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(10, 0, 0, 0),
+                Width = 300
+            };
+
+            // Close button
+            Button closeButton = new Button
+            {
+                Text = "X",
+                ForeColor = System.Drawing.Color.Red, // Red text color
+                BackColor = System.Drawing.Color.FromArgb(255, 0, 0),
+                //FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Right,
+                Width = 30
+            };
+            closeButton.FlatAppearance.BorderSize = 0; // Remove border
+            closeButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(100, 0, 0); // Brighter red on hover
+            closeButton.FlatAppearance.MouseDownBackColor = System.Drawing.Color.FromArgb(80, 0, 0); // Darker red on click
+            closeButton.UseVisualStyleBackColor = false; // Ensure custom BackColor is respected
+            closeButton.Click += (s, e) => this.Close();
+
+
+            // Drag functionality for the custom title bar
+            titleBar.MouseDown += TitleBar_MouseDown;
+            titleBar.MouseMove += TitleBar_MouseMove;
+            titleBar.MouseUp += TitleBar_MouseUp;
+
+            titleBar.Controls.Add(titleLabel);
+            titleBar.Controls.Add(closeButton);
+            this.Controls.Add(titleBar);
         }
 
+        // Variables for drag functionality
+        private bool dragging = false;
+        private Point dragCursorPoint;
+        private Point dragFormPoint;
+
+        private void TitleBar_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                dragging = true;
+                dragCursorPoint = System.Windows.Forms.Cursor.Position; // Explicit reference
+                dragFormPoint = this.Location;
+            }
+        }
+        private void TitleBar_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (dragging)
+            {
+                Point diff = Point.Subtract(System.Windows.Forms.Cursor.Position, new Size(dragCursorPoint)); // Explicit reference
+                this.Location = Point.Add(dragFormPoint, new Size(diff));
+            }
+        }
+        private void TitleBar_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                dragging = false; // Stop dragging
+            }
+        }
+        private void InitializeMenuStrip()
+        {
+            // Create a new MenuStrip
+            MenuStrip menuStrip = new MenuStrip
+            {
+                Dock = DockStyle.Top, // Attach to the top of the form
+                BackColor = System.Drawing.Color.FromArgb(30, 30, 30), // Dark mode background
+                ForeColor = System.Drawing.Color.White, // Text color for menu items
+                Font = new System.Drawing.Font("Segoe UI", 10) // Font style
+            };
+
+            // Create "File" menu
+            ToolStripMenuItem fileMenu = new ToolStripMenuItem("File");
+
+            ToolStripMenuItem downloadLimitFamilyMenuItem = new ToolStripMenuItem("Download Limit Family");
+            downloadLimitFamilyMenuItem.Click += DownloadButton_Click; // Link to the DownloadButton_Click method
+            fileMenu.DropDownItems.Add(downloadLimitFamilyMenuItem);
+
+            ToolStripMenuItem loadLimitFamilyMenuItem = new ToolStripMenuItem("Load Limit Family");
+            loadLimitFamilyMenuItem.Click += (s, e) => ImportJsonFile(); // Link to the ImportJsonFile method
+            fileMenu.DropDownItems.Add(loadLimitFamilyMenuItem);
+
+            ToolStripMenuItem exportToAPxMenuItem = new ToolStripMenuItem("Export Family to APx");
+            exportToAPxMenuItem.Click += ExportToAPxButton_Click; // Link to the ExportToAPxButton_Click method
+            fileMenu.DropDownItems.Add(exportToAPxMenuItem);
+
+            fileMenu.DropDownItems.Add("Exit", null, (s, e) => this.Close());
+
+            // Add the menus to the MenuStrip
+            menuStrip.Items.Add(fileMenu);
+
+            // Add the MenuStrip to the form
+            this.Controls.Add(menuStrip);
+
+            // Adjust layout so the title bar is below the MenuStrip
+            menuStrip.BringToFront();
+            menuStrip.Padding = new Padding(2, 2, 2, 2);
+        }
+        private void ApplyDarkModeToControls(System.Windows.Forms.Control.ControlCollection controls)
+        {
+            foreach (System.Windows.Forms.Control control in controls) // Explicitly specify System.Windows.Forms.Control
+            {
+                if (control is TabControl tabControl)
+                {
+                    tabControl.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
+                    tabControl.ForeColor = System.Drawing.Color.White;
+                    foreach (TabPage tabPage in tabControl.TabPages)
+                    {
+                        ApplyDarkModeToControls(tabPage.Controls);
+                    }
+                }
+                else if (control is DataGridView dataGridView)
+                {
+                    dataGridView.BackgroundColor = System.Drawing.Color.FromArgb(30, 30, 30);
+                    dataGridView.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
+                    dataGridView.DefaultCellStyle.ForeColor = System.Drawing.Color.White;
+                    dataGridView.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
+                    dataGridView.ColumnHeadersDefaultCellStyle.ForeColor = System.Drawing.Color.White;
+                }
+                else if (control is TextBox textBox)
+                {
+                    textBox.BackColor = System.Drawing.Color.FromArgb(45, 45, 45);
+                    textBox.ForeColor = System.Drawing.Color.White;
+                }
+                else if (control is Button button)
+                {
+                    button.BackColor = System.Drawing.Color.FromArgb(60, 60, 60);
+                    button.ForeColor = System.Drawing.Color.White;
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(85, 85, 85);
+                }
+                else if (control is System.Windows.Forms.Control) // Explicitly specify System.Windows.Forms.Control
+                {
+                    control.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
+                    control.ForeColor = System.Drawing.Color.White;
+                }
+
+                if (control.Controls.Count > 0)
+                {
+                    ApplyDarkModeToControls(control.Controls);
+                }
+            }
+        }
+        private void AdjustControlPositions(int offset)
+        {
+            foreach (System.Windows.Forms.Control control in this.Controls)
+            {
+                // Skip the title bar itself
+                if (control.Name != "TitleBarPanel") // Assuming you name the title bar panel "TitleBarPanel"
+                {
+                    control.Location = new Point(control.Location.X, control.Location.Y + offset);
+                }
+            }
+        }
         private void InitializeChannelTabs()
         {
+            tableLayoutPanel.BackColor = System.Drawing.Color.FromArgb(60, 60, 60); // Set background for the table layout
             limitValuesTabControl.TabPages.Clear();
 
             foreach (var channelIndex in channelData.Keys)
             {
-                TabPage tabPage = new TabPage($"Channel {channelIndex + 1}");
-                DataGridView dataGridView = new DataGridView
+                TabPage tabPage = new TabPage($"Channel {channelIndex + 1}")
+                {
+                    BackColor = System.Drawing.Color.FromArgb(45, 45, 45), // Set tab page background
+                    ForeColor = System.Drawing.Color.White // Set text color
+                };
 
+                DataGridView dataGridView = new DataGridView
                 {
                     Dock = DockStyle.Fill,
                     DataSource = new BindingList<MeterValue>(channelData[channelIndex]),
                     AutoGenerateColumns = true,
-                    AllowUserToAddRows = true // Depending on your requirements
+                    AllowUserToAddRows = false // Adjust based on your requirements
                 };
+
+                InitializeDataGridViewForDarkMode(dataGridView); // Apply dark mode styling
+
                 tabPage.Controls.Add(dataGridView);
-                CopyDataGridView(dataGridView, dataGridView1);
                 limitValuesTabControl.TabPages.Add(tabPage);
             }
         }
-
-
-
-
         private void InitializeLimitEditorComponents()
         {
             this.dataGridView1 = new DataGridView();
@@ -161,63 +350,6 @@ namespace LAPxv8
             this.dataGridView1.Location = new System.Drawing.Point(10, 10); // Set location
             this.dataGridView1.Size = new System.Drawing.Size(300, 200); // Set size
 
-
-            this.Size = new System.Drawing.Size(1500, 1250);
-
-            // Initialize Close Button
-            Button closeButton = new Button
-            {
-                Text = "Close",
-                Location = new Point(1050, 720),
-                Size = new System.Drawing.Size(130, 30)
-            };
-            closeButton.Click += CloseButton_Click;
-            this.Controls.Add(closeButton);
-            TextBox xyValuesTextBox = new TextBox
-            {
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Location = new Point(10, 10), // Adjust as needed
-                Size = new System.Drawing.Size(300, 200) // Adjust as needed
-            };
-            this.Controls.Add(xyValuesTextBox);
-            Button downloadButton = new Button
-            {
-                Text = "Download Limit Family",
-                Location = new Point(1050, 760), // Adjust the location as needed
-                Size = new System.Drawing.Size(130, 30)
-            };
-            downloadButton.Click += DownloadButton_Click;
-            this.Controls.Add(downloadButton);
-
-            Button importJsonButton = new Button
-            {
-                Text = "Load Limit Family",
-                Size = new System.Drawing.Size(130, 30),
-                Location = new Point(1050, 800) // Adjust the location as needed
-            };
-            importJsonButton.Click += (sender, e) => ImportJsonFile();
-            //importJsonButton.Click += ExportLimitFamilyButton_Click1;
-            this.Controls.Add(importJsonButton);
-
-            startExeButton = new Button
-            {
-                Text = "Start .exe",
-                Size = new Size(130, 30),
-                Location = new Point(1050, 840) // Adjust the location as needed
-            };
-            startExeButton.Click += StartExeButton_Click;
-            this.Controls.Add(startExeButton);
-
-            // Initialize new "Import Limit Family to APx" Button
-            Button exportLimitFamilyButton = new Button
-            {
-                Text = "Export Family to APx",
-                Size = new Size(130, 30),
-                Location = new Point(importJsonButton.Location.X, importJsonButton.Location.Y + importJsonButton.Height + 50)
-            };
-            exportLimitFamilyButton.Click += ExportLimitFamilyButton_Click;
-            this.Controls.Add(exportLimitFamilyButton);
 
             // Initialize Limit Data TextBox
             limitDataTextBox = new TextBox
@@ -244,10 +376,12 @@ namespace LAPxv8
                 Text = "Import Limit",
                 Size = new System.Drawing.Size(120, 30),
                 Location = new Point(1185, 560), // Adjust the location
-                Visible = false // Initially hidden
+                Visible = true, // Ensure it is visible
+                Enabled = false // Grey out the button
             };
-            importLimitButton.Click += ImportLimitButton_Click;
+            importLimitButton.Click += ImportLimitButton_Click; // The event won't trigger when the button is disabled
             this.Controls.Add(importLimitButton);
+
 
             // Initialize "Apply to All" Checkbox
             applyToAllCheckBox = new System.Windows.Forms.CheckBox
@@ -256,6 +390,7 @@ namespace LAPxv8
                 Location = new Point(1320, 490), // Adjust the location as needed
                 AutoSize = true,
                 Visible = false, // Initially invisible
+                Enabled = false, // Grey out the button
                 Checked = true
             };
             this.Controls.Add(applyToAllCheckBox);
@@ -274,7 +409,7 @@ namespace LAPxv8
             // Initialize "Delete Limit" Button independently
             deleteLimitButton = new Button
             {
-                Text = "Delete Limit",
+                Text = "Delete Row",
                 Size = new System.Drawing.Size(120, 30),
                 Location = new Point(importLimitButton.Location.X, importLimitButton.Location.Y + importLimitButton.Height + exportToAPxButton.Height + 20), // Adjust the location
                 Visible = false // Initially hidden
@@ -284,7 +419,7 @@ namespace LAPxv8
 
             deleteEntireLimitButton = new Button
             {
-                Text = "Clear Limit",
+                Text = "Remove All",
                 Size = new System.Drawing.Size(120, 30),
                 Location = new Point(importLimitButton.Location.X, importLimitButton.Location.Y + importLimitButton.Height + exportToAPxButton.Height + 60), // Adjust the location
                 Visible = false // Initially hidden
@@ -295,7 +430,6 @@ namespace LAPxv8
 
         private Button currentlySelectedButton;
         private Dictionary<Button, System.Drawing.Color> originalButtonColors = new Dictionary<Button, System.Drawing.Color>();
-
         private void UpdateButtonColor(Button button, System.Drawing.Color color)
         {
             // Update the color of the button in the dictionary
@@ -308,7 +442,6 @@ namespace LAPxv8
                 originalButtonColors.Add(button, color);
             }
         }
-
         private void ChangeButtonColor(Button button)
         {
             // Reset the color of the previously selected button
@@ -326,9 +459,6 @@ namespace LAPxv8
             // Update the reference to the currently selected button
             currentlySelectedButton = button;
         }
-
-
-
         // Event handler for button clicks
         private void OnButtonClick(object sender, EventArgs e)
         {
@@ -351,9 +481,6 @@ namespace LAPxv8
                 }
             }
         }
-
-        // Method to update button states based on the current selected result
-
 
         private void ExportToAPx(int signalPathIndex, int measurementIndex, string resultName, bool isUpperLimit)
         {
@@ -460,8 +587,6 @@ namespace LAPxv8
             }
         }
 
-
-
         private void StartExeButton_Click(object sender, EventArgs e)
         {
             try
@@ -477,7 +602,6 @@ namespace LAPxv8
                 MessageBox.Show($"An error occurred while starting the executable: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
             }
         }
-
         private ResultData FindResultData(int signalPathIndex, int measurementIndex, string resultName)
         {
             // Iterate through your data structure to find the ResultData object
@@ -503,59 +627,12 @@ namespace LAPxv8
             }
             return null;
         }
-
         private void ProcessXYGraph1(IGraph graph, ResultData result, bool isUpperLimit)
         {
             IXYGraph xyGraph = graph.Result.AsXYGraph();
             // Decide which limits to use based on isUpperLimit and apply to all check
             IEnumerable<MeterValue> limitValues = DetermineLimitValues(isUpperLimit);
-            /*
-            List<double> xValuesList = new List<double>();
-            List<double> yValuesList = new List<double>();
-
-            foreach (var meterValue in limitValues)
-            {
-                xValuesList.Add(meterValue.XValue);
-                yValuesList.Add(meterValue.YValue);
-            }
-
-            // Ensure X values are sequential
-            if (!IsSequential(xValuesList))
-            {
-                MessageBox.Show("Limit X data values must be sequential.", "Export Error", MessageBoxButtons.OK, FormsMessageBoxIcon.Error);
-                LogToTextBox("Export error: Non-sequential X values.");
-                return;
-            }
-
-            if (isUpperLimit)
-            {
-                if (xValuesList.Count > 0 && yValuesList.Count > 0)
-                {
-                    // Further check if the first element of both lists is 0
-                    if (xValuesList[0] == 0 && yValuesList[0] == 0)
-                    {
-                        // Remove the first element from both lists
-                        xValuesList.RemoveAt(0);
-                        yValuesList.RemoveAt(0);
-                    }
-                }
-                xyGraph.UpperLimit.SetValues(0, xValuesList.ToArray(), yValuesList.ToArray());
-            }
-            else
-            {
-                if (xValuesList.Count > 0 && yValuesList.Count > 0)
-                {
-                    // Further check if the first element of both lists is 0
-                    if (xValuesList[0] == 0 && yValuesList[0] == 0)
-                    {
-                        // Remove the first element from both lists
-                        xValuesList.RemoveAt(0);
-                        yValuesList.RemoveAt(0);
-                    }
-                }
-                xyGraph.LowerLimit.SetValues(0, xValuesList.ToArray(), yValuesList.ToArray());
-            }
-            */
+            
             // Update the button state
             foreach (System.Windows.Forms.Control control in tableLayoutPanel.Controls)
             {
@@ -568,7 +645,6 @@ namespace LAPxv8
 
             LogToTextBox("Limits exported successfully to APx.");
         }
-
         private void ProcessXYGraph(IGraph graph, ResultData result, bool isUpperLimit)
         {
             IXYGraph xyGraph = graph.Result.AsXYGraph();
@@ -633,9 +709,11 @@ namespace LAPxv8
 
             LogToTextBox("Limits exported successfully to APx.");
         }
-
         private void ProcessMeterGraph(IGraph graph, ResultData result, bool isUpperLimit)
         {
+
+            tableLayoutPanel.BackColor = System.Drawing.Color.FromArgb(60, 60, 60); // Dark grey background
+
             IMeterGraph meterGraph = graph.Result.AsMeterGraph();
 
             double[] limitValues = isUpperLimit ? result.MeterUpperLimitValues : result.MeterLowerLimitValues;
@@ -672,46 +750,6 @@ namespace LAPxv8
 
             LogToTextBox("Meter value limit exported successfully to APx.");
         }
-
-        /* private void ProcessMeterGraph1(IGraph graph, ResultData result, bool isUpperLimit)
-         {
-             /*  IMeterGraph meterGraph = graph.Result.AsMeterGraph();
-
-               double[] limitValues = isUpperLimit ? result.MeterUpperLimitValues : result.MeterLowerLimitValues;
-
-               // Check if the limit values are properly set
-               if (limitValues == null || limitValues.Length == 0)
-               {
-                   LogToTextBox($"Error: Meter {(isUpperLimit ? "Upper" : "Lower")} Limit Values are null or empty. Skipping export for this graph.");
-                   return;
-               }
-
-               double limitValue = limitValues[0]; // Assuming the first value is used for the entire graph
-               if (!(limitValue.ToString() == "NaN"))
-               {
-                   if (isUpperLimit)
-                   {
-                       meterGraph.UpperLimit.SetValue(0, limitValue);
-                   }
-                   else
-                   {
-                       meterGraph.LowerLimit.SetValue(0, limitValue);
-                   }
-
-             // Update the button state
-             foreach (System.Windows.Forms.Control control in tableLayoutPanel.Controls)
-             {
-                 if (control is Button button && button.Tag is ResultData buttonResultData && buttonResultData == result)
-                 {
-                     Button limitButton = FindLimitButton(result);
-                     UpdateSpecificEditButtonForLimit(result, isUpperLimit);
-                 }
-             }
-             /*  }
-
-             LogToTextBox("Meter value limit exported successfully to APx.");
-         }*/
-
         private Button FindLimitButton(ResultData resultData)
         {
             foreach (System.Windows.Forms.Control control in tableLayoutPanel.Controls)
@@ -735,26 +773,6 @@ namespace LAPxv8
                 return isUpperLimit ? channelData.Values.First() : channelData.Values.SelectMany(c => c);
             }
         }
-
-        /*private double DetermineMeterLimitValue(bool isUpperLimit)
-        {
-            if (currentSelectedResult == null)
-            {
-                LogToTextBox("Error: 'currentSelectedResult' is null.");
-                //throw new InvalidOperationException("Current selected result is null.");
-            }
-
-            double[] limitValues = isUpperLimit ? currentSelectedResult.MeterUpperLimitValues : currentSelectedResult.MeterLowerLimitValues;
-
-            if (limitValues == null || limitValues.Length == 0)
-            {
-                LogToTextBox($"Error: Meter {(isUpperLimit ? "Upper" : "Lower")} Limit Values are null or empty.");
-                throw new InvalidOperationException("Meter limit values are null or empty.");
-            }
-
-            return limitValues[0];
-        }*/
-
         private void EditButton_Click(object sender, EventArgs e)
         {
             // Assuming this method is called when an 'Edit' button is clicked
@@ -765,7 +783,6 @@ namespace LAPxv8
                                                      // Your existing code to initiate editing...
             }
         }
-
         private void UpdateLimit()
         {
             // This method should be called after a limit is updated
@@ -783,38 +800,6 @@ namespace LAPxv8
                 UpdateButtonStatesForResult(currentSelectedResult);
             }
         }
-        /*private void UpdateLimitButtonState(ResultData result, Button limitButton, bool isUpperLimit)
-        {
-            if (result == null || limitButton == null)
-                return;
-
-
-            if (isUpperLimit)
-            {
-                limitButton.Text = "View";
-                if (result.XValueUpperLimitValues.Length != 0)
-                {
-                    limitButton.BackColor = System.Drawing.Color.Red;
-                }
-                else
-                {
-                    limitButton.BackColor = SystemColors.Control;
-                }
-            }
-            else
-            {
-                limitButton.Text = "View";
-                if (result.XValueLowerLimitValues.Length != 0)
-                {
-                    limitButton.BackColor = System.Drawing.Color.Blue;
-                }
-                else
-                {
-                    limitButton.BackColor = SystemColors.Control;
-                }
-            }
-        }*/
-
         private bool IsSequential(List<double> values)
         {
             for (int i = 1; i < values.Count; i++)
@@ -824,7 +809,6 @@ namespace LAPxv8
             }
             return true;
         }
-
         private void ExportToAPxButton_Click(object sender, EventArgs e)
         {
             if (currentSelectedResult == null)
@@ -840,7 +824,6 @@ namespace LAPxv8
             ExportToAPx(signalPathIndex, measurementIndex, resultName, !currentIsUpperLimit);
             RefreshDataGridViewForAllChannels();
         }
-
         private void ExportLimitFamilyButton_Click(object sender, EventArgs e)
         {
             foreach (var signalPathData in checkedData)
@@ -878,7 +861,6 @@ namespace LAPxv8
             }
 
         }
-
         private async void ExportLimitFamilyButton_Click1(object sender, EventArgs e)
         {
             int counter = 1;
@@ -949,7 +931,6 @@ namespace LAPxv8
             }
 
         }
-
         private void missingLimitChoice(List<string> measurements)
         {
             foreach (var measurement in measurements)
@@ -999,65 +980,30 @@ namespace LAPxv8
                 }
             }
         }
-
         private void HandleRemove(string measurement, string signal, string measure, string result)
         {
             // Implement the remove action here
             Debug.WriteLine($"Discarded measurement: {measurement}");
 
         }
-
         private void HandleAdd(string measurements, string signal, string measure, string results)
         {
             Debug.WriteLine($"Added measurement: {measurements}");
 
             int currentRow = tableLayoutPanel.RowCount;
             InitializeTableadd1(6, signal, measure, results);
-            //APx.showMeasurement(signal,results)
-            //APx.ActiveMeasurement.Graphs.Add(results).Checked = true;
         }
-
-        //how to add measurement sequence step here 
-
-
         private void HandleMatch(string measurement, string signal, string measure, string result)
         {
             DisplayAndSelectControls(signal, measure, result);
             Debug.WriteLine($"Matched measurement: {measurement}");
         }
-
         private void ReplaceMeasurement(string replaceMeasurement, string signal, string measure, string result)
         {
-            /*foreach (var element in limitEntries)
-            {
-                Debug.WriteLine("OLD LIST " + element);
-            }*/
 
             replaceMeasurement = replaceMeasurement.Replace("System.Windows.Forms.Label, Text: ", "").Trim();
-            //Debug.WriteLine(replaceMeasurement);
-            //Debug.WriteLine("should match" );
-            //Debug.WriteLine($"{signal} | {measure} | {result}");
             int currentRow = 1;
             string resultText;
-
-
-            /*foreach (var signalPath in checkedData)
-            {
-                foreach (var measurement in signalPath.Measurements)
-                {
-                    foreach (var results in measurement.Results)
-                    {
-                             resultText = $"{signalPath.Name} | {measurement.Name} | {results.Name}";
-                            if (resultText == replaceMeasurement)
-                            {
-                       
-
-                            Debug.WriteLine("old measurements" + resultText);
-                             }
-                    }
-                }
-            }*/
-
 
             foreach (var signalPath in checkedData)
             {
@@ -1087,28 +1033,7 @@ namespace LAPxv8
                     }
                 }
             }
-            /*foreach (var signalPath in checkedData)
-            {
-                foreach (var measurement in signalPath.Measurements)
-                {
-                    foreach (var results in measurement.Results)
-                    {
-
-                        resultText = $"{signalPath.Name} | {measurement.Name} | {results.Name}";
-                            if (resultText == replaceMeasurement)
-                            {
-                            Debug.WriteLine("changed measurements" + resultText);
-                            }
-                    }
-                }
-            }*/
-            /*foreach( var element in limitEntries)
-            {
-                Debug.WriteLine("NEW LIST " + element);
-            }*/
-
         }
-
         private void DisplayAndSelectControls(string signal, string measure, string result)
         {
             // Create a new form to display the controls
@@ -1120,21 +1045,13 @@ namespace LAPxv8
             ListBox controlsListBox = new ListBox();
             controlsListBox.Dock = DockStyle.Top;
             controlsListBox.Height = 200;
+            tableLayoutPanel.BackColor = System.Drawing.Color.FromArgb(60, 60, 60);
 
             // Add the names of the controls to the ListBox
             foreach (var control in tableLayoutPanel.Controls)
             {
                 string controlString = control.ToString();
 
-
-                // Check if the control is a button with the specified text
-                /* if (controlString.Contains("System.Windows.Forms.Button, Text:"))
-                 {
-                      // Extract the text after the specific substring
-                     int startIndex = controlString.IndexOf("System.Windows.Forms.Button, Text:") + "System.Windows.Forms.Button, Text:".Length;
-                     controlString = controlString.Substring(startIndex).Trim();
-                     Debug.WriteLine(controlString);
-                 }*/
 
                 // Add the cleaned control string if it is not one of the excluded types
                 if (//!controlString.Contains("System.Windows.Forms.Label") &&
@@ -1177,7 +1094,6 @@ namespace LAPxv8
             selectionForm.ShowDialog();
 
         }
-
 
         private DataGridView dataGridView1;
         private List<string> missingLimit()
@@ -1227,7 +1143,6 @@ namespace LAPxv8
 
             return missingEntries;
         }
-
         private void CopyDataGridView(DataGridView source, DataGridView destination)
         {
             // Clear destination DataGridView
@@ -1250,7 +1165,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void updateimportLimitFamilyButton_Click(object sender, EventArgs e)
         {
             foreach (var signalPathData in checkedData)
@@ -1288,7 +1202,6 @@ namespace LAPxv8
             }
 
         }
-
         private void InitializeAddPointButtons()
         {
 
@@ -1296,7 +1209,7 @@ namespace LAPxv8
             {
                 Text = "Add Point Before",
                 Size = new Size(120, 30),
-                Location = new Point(1185, 480) // Adjust the location as needed
+                Location = new Point(1185, 530) // Adjust the location as needed
             };
             addButtonBefore.Click += AddButtonBefore_Click;
             this.Controls.Add(addButtonBefore);
@@ -1305,7 +1218,7 @@ namespace LAPxv8
             {
                 Text = "Add Point After",
                 Size = new Size(120, 30),
-                Location = new Point(1185, 520) // Adjust the location as needed
+                Location = new Point(1185, 570) // Adjust the location as needed
             };
             addButtonAfter.Click += AddButtonAfter_Click;
             this.Controls.Add(addButtonAfter);
@@ -1399,10 +1312,9 @@ namespace LAPxv8
             // Check if the limitValues array has any data points
             return limitValues != null && limitValues.Length > 0;
         }
-
         private void UpdateButtonStatesForResult(ResultData result)
         {
-            int counter = 1;
+            int counter = 0;
             foreach (System.Windows.Forms.Control control in tableLayoutPanel.Controls)
             {
 
@@ -1449,7 +1361,7 @@ namespace LAPxv8
 
                             //Debug.WriteLine("default button upper " + counter);
                             button.Text = "Edit";
-                            button.BackColor = SystemColors.Control;
+                            button.BackColor = System.Drawing.Color.FromArgb(60, 60, 60); // Example dark grey
                             counter++;
                         }
 
@@ -1457,8 +1369,6 @@ namespace LAPxv8
                 }
             }
         }
-
-
         private bool ProcessXYValuesRow(string[] row, bool applyToSpecificChannel, int selectedChannel)
         {
             if (row.Length < 2)
@@ -1495,7 +1405,6 @@ namespace LAPxv8
 
             return true;
         }
-
         private bool ProcessMeterValuesRow(string[] row, bool applyToSpecificChannel, int selectedChannel)
         {
             if (row.Length < 1)
@@ -1532,7 +1441,6 @@ namespace LAPxv8
 
             return true;
         }
-
         private void AddToChannelData(int channelIndex, double xValue, double yValue)
         {
             if (!channelData.ContainsKey(channelIndex))
@@ -1541,7 +1449,6 @@ namespace LAPxv8
             }
             channelData[channelIndex].Add(new MeterValue { XValue = xValue, YValue = yValue });
         }
-
         private void LoadDataIntoComponents(List<string[]> limitData)
         {
             if (limitData == null || limitData.Count == 0) return;
@@ -1629,37 +1536,6 @@ namespace LAPxv8
                 // Handle other value types as needed
             }
         }
-        /*private void AddRowToSelectedChannel(bool addBefore)
-        {
-            // Get the currently selected tab, which corresponds to the current channel
-            TabPage selectedTab = limitValuesTabControl.SelectedTab;
-
-            if (selectedTab != null && selectedTab.Controls[0] is DataGridView dataGridView)
-            {
-                int selectedIndex = dataGridView.SelectedCells.Count > 0 ? dataGridView.SelectedCells[0].RowIndex : -1;
-                if (selectedIndex == -1) return; // No selection made, exit the method
-
-                int insertIndex = addBefore ? selectedIndex : selectedIndex + 1;
-
-                // Get the channel index from the selected tab's name or another identifier
-                int channelIndex = limitValuesTabControl.TabPages.IndexOf(selectedTab);
-
-                // Ensure channelData dictionary contains the channel
-                if (!channelData.ContainsKey(channelIndex))
-                {
-                    channelData[channelIndex] = new List<MeterValue>(); // Initialize if not present
-                }
-
-                // Insert a new MeterValue at the specified index for this channel
-                channelData[channelIndex].Insert(insertIndex, new MeterValue { XValue = 0, YValue = 0 });
-
-                // Update the DataGridView for this channel
-                dataGridView.DataSource = null; // Reset DataSource to trigger UI update
-                dataGridView.DataSource = new BindingList<MeterValue>(channelData[channelIndex]);
-            }
-        }*/
-
-
         private void AddButtonBefore_Click(object sender, EventArgs e)
         {
             if (!applyToAllCheckBox.Checked)
@@ -1673,7 +1549,6 @@ namespace LAPxv8
                 AddRowToDataGridView(true);
             }
         }
-
         private void AddButtonAfter_Click(object sender, EventArgs e)
         {
             if (!applyToAllCheckBox.Checked)
@@ -1687,20 +1562,6 @@ namespace LAPxv8
                 AddRowToDataGridView(false);
             }
         }
-        /* private void ApplyChangesToAllChannels(int sourceChannelIndex, int rowIndex)
-         {
-             var sourceValue = channelData[sourceChannelIndex][rowIndex];
-             foreach (var kvp in channelData)
-             {
-                 if (kvp.Key != sourceChannelIndex && kvp.Value.Count > rowIndex)
-                 {
-                     kvp.Value[rowIndex].XValue = sourceValue.XValue;
-                     kvp.Value[rowIndex].YValue = sourceValue.YValue;
-                 }
-             }
-             RefreshDataGridViewForAllChannels();
-             UpdateResultDataArrays();
-         }*/
         private void AddRowToAllDataGridViews(bool addBefore)
         {
             // Get the index of the currently selected tab/channel
@@ -1731,12 +1592,7 @@ namespace LAPxv8
 
             // Refresh the DataGridView for the selected channel to show the new row
             RefreshDataGridView(channelIndex);
-
-            // Optionally, update the result data arrays and limit data textbox for the current selected result
-            // UpdateResultDataArraysForSpecificChannel(channelIndex);
-            // UpdateLimitDataTextBox(currentSelectedResult, currentIsUpperLimit);
         }
-
         private void CreateTabsForResultData(ResultData resultData, bool isUpperLimit)
         {
             limitValuesTabControl.TabPages.Clear();
@@ -1770,14 +1626,6 @@ namespace LAPxv8
                 }
             }
         }
-
-        /* private void LoadLimitsIntoComponents(ResultData resultData, bool isUpperLimit)
-         {
-             CreateTabsForResultData(resultData, isUpperLimit);
-             DisplayGraph(resultData, isUpperLimit);
-             UpdateLimitDataTextBox(resultData, isUpperLimit);
-         }*/
-
         private void LogToTextBox(string message)
         {
             if (limitDataTextBox != null)
@@ -1792,7 +1640,6 @@ namespace LAPxv8
                 Debug.WriteLine($"LimitDataTextBox is null. Unable to log: {message}");
             }
         }
-
         private DataGridView InitializeDataGridViewForChannel(ResultData resultData, int channelIndex, bool isUpperLimit)
         {
             DataGridView dataGridView = new DataGridView
@@ -1810,6 +1657,40 @@ namespace LAPxv8
             UpdateDataGridViewWithResultValues(dataGridView, resultData, channelIndex, isUpperLimit);
 
             return dataGridView;
+        }
+        private void InitializeDataGridViewColumns(DataGridView dataGridView, string resultValueType)
+        {
+            dataGridView.Columns.Clear(); // Clear existing columns to avoid duplication
+
+            if (resultValueType == "Meter Values" && !dataGridView.Columns.Contains("Value"))
+            {
+                // Add a column for Meter Values
+                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    HeaderText = "Meter Value",
+                    DataPropertyName = "Value",
+                    Name = "Value",
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill // Auto-resize column width
+                });
+            }
+            else if (resultValueType == "XY Values" && !dataGridView.Columns.Contains("XValue") && !dataGridView.Columns.Contains("YValue"))
+            {
+                // Add columns for XY Values
+                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    HeaderText = "X Values",
+                    DataPropertyName = "XValue",
+                    Name = "XValue",
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                });
+                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    HeaderText = "Y Values",
+                    DataPropertyName = "YValue",
+                    Name = "YValue",
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                });
+            }
         }
 
         private void UpdateDataGridViewWithResultValues(DataGridView dataGridView, ResultData resultData, int channelIndex, bool isUpperLimit)
@@ -1900,40 +1781,51 @@ namespace LAPxv8
             }
 
         }
-
-        private void InitializeDataGridViewColumns(DataGridView dataGridView, string resultValueType)
+        private void InitializeDataGridViewForDarkMode(DataGridView dataGridView)
         {
-            dataGridView.Columns.Clear();
+            // Set general DataGridView styles
+            dataGridView.BackgroundColor = System.Drawing.Color.FromArgb(45, 45, 45); // Dark grey background
+            dataGridView.BorderStyle = BorderStyle.None;
 
-            if (resultValueType == "Meter Values" && !dataGridView.Columns.Contains("Value"))
+            // Set column header styles
+            dataGridView.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
             {
-                // Add a column for Meter Values
-                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
-                {
-                    HeaderText = "Meter Value",
-                    DataPropertyName = "Value",
-                    Name = "Value"
-                });
-            }
-            else if (resultValueType == "XY Values" && !dataGridView.Columns.Contains("XValue") && !dataGridView.Columns.Contains("YValue"))
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60), // Slightly lighter dark grey
+                ForeColor = System.Drawing.Color.Black, // White text
+                Font = new System.Drawing.Font("Segoe UI", 10, FontStyle.Bold),
+                Alignment = DataGridViewContentAlignment.MiddleCenter
+            };
+
+            dataGridView.EnableHeadersVisualStyles = false; // Disable default styles to apply custom styles
+
+            // Set row styles
+            dataGridView.DefaultCellStyle = new DataGridViewCellStyle
             {
-                // Add columns for XY Values
-                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
-                {
-                    HeaderText = "X Values",
-                    DataPropertyName = "XValue",
-                    Name = "XValue"
-                });
-                dataGridView.Columns.Add(new DataGridViewTextBoxColumn
-                {
-                    HeaderText = "Y Values",
-                    DataPropertyName = "YValue",
-                    Name = "YValue"
-                });
-            }
+                BackColor = System.Drawing.Color.FromArgb(45, 45, 45), // Match background
+                ForeColor = System.Drawing.Color.Black, // White text
+                SelectionBackColor = System.Drawing.Color.FromArgb(80, 80, 80), // Highlight color when selected
+                SelectionForeColor = System.Drawing.Color.White, // Highlighted text color
+                Font = new System.Drawing.Font("Segoe UI", 10, FontStyle.Regular)
+            };
+
+            // Set grid styles
+            dataGridView.GridColor = System.Drawing.Color.Gray; // Gridline color
+            dataGridView.RowHeadersDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(60, 60, 60); // Row header background
+            dataGridView.RowHeadersDefaultCellStyle.ForeColor = System.Drawing.Color.Black; // Row header text color
+            dataGridView.RowHeadersDefaultCellStyle.SelectionBackColor = System.Drawing.Color.FromArgb(80, 80, 80); // Row header highlight
+            dataGridView.RowHeadersVisible = false; // Hide row headers if not needed
+
+            // Set alternating row styles
+            dataGridView.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = System.Drawing.Color.FromArgb(50, 50, 50), // Slightly different grey for alternating rows
+                ForeColor = System.Drawing.Color.Black
+            };
+
+            // Adjust auto-sizing and alignment
+            dataGridView.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
         }
-
-
         private void limitValuesTabControl_Selected(object sender, TabControlEventArgs e)
         {
             // Ensure that currentSelectedResult is not null
@@ -1985,7 +1877,6 @@ namespace LAPxv8
             UpdateDataGridViewWithResultValues(dataGridView, currentSelectedResult, channelIndex, currentIsUpperLimit);
             dataGridView.Refresh(); // Refresh the DataGridView to update the display
         }
-
         private void AddPointToChannel(int channelIndex, MeterValue point)
         {
             if (channelData.ContainsKey(channelIndex))
@@ -1994,7 +1885,6 @@ namespace LAPxv8
                 //efreshChannelDataGridView(channelIndex);
             }
         }
-
         private void RefreshChannelDataGridView(int channelIndex)
         {
             if (limitValuesTabControl.TabPages.Count > channelIndex)
@@ -2007,7 +1897,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void UpdateCurrentSelectedResultWithChannelData()
         {
             if (currentSelectedResult == null)
@@ -2030,7 +1919,6 @@ namespace LAPxv8
             }
             DisplayGraph(currentSelectedResult, currentIsUpperLimit);
         }
-
         private void UpdateXYValuesForCurrentSelectedResult()
         {
             // Log initial X and Y values
@@ -2041,9 +1929,7 @@ namespace LAPxv8
                 x1 += 1;
                 //Debug.WriteLine(x);
             }
-            //Debug.WriteLine(x1);
-
-
+            
             // Function logic to update X and Y values...
             List<double> newXValues = new List<double>();
             List<double> newYValues = new List<double>();
@@ -2076,7 +1962,6 @@ namespace LAPxv8
             // Debug.WriteLine(x1);
 
         }
-
         private void UpdateMeterValuesForCurrentSelectedResult()
         {
             if (currentSelectedResult.ResultValueType != "Meter Values")
@@ -2109,7 +1994,6 @@ namespace LAPxv8
 
             LogToTextBox("Updated meter values for current selected result.");
         }
-
         private void LimitValuesDataGridView_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
@@ -2136,7 +2020,6 @@ namespace LAPxv8
             UpdateGraph();
             UpdateButtonStateForCurrentSelectedResult(currentSelectedResult.SignalPathIndex, currentSelectedResult.MeasurementIndex, currentSelectedResult.Index, currentIsUpperLimit);
         }
-
         private void HandleXYValuesUpdate(DataGridView dataGridView, int channelIndex, int rowIndex)
         {
             if (double.TryParse(dataGridView.Rows[rowIndex].Cells["XValue"].Value?.ToString(), out double newXValue) &&
@@ -2178,7 +2061,6 @@ namespace LAPxv8
                 LogToTextBox("Invalid input for XY values.");
             }
         }
-
         private void HandleMeterValuesUpdate(DataGridView dataGridView, int channelIndex, int rowIndex)
         {
             LogToTextBox($"HandleMeterValuesUpdate called for Channel {channelIndex + 1}, Row {rowIndex + 1}");
@@ -2217,7 +2099,6 @@ namespace LAPxv8
                 LogToTextBox("Invalid input for meter values.");
             }
         }
-
         private void UpdateSpecificEditButtonForLimit(ResultData resultData, bool isUpperLimit)
         {
 
@@ -2286,11 +2167,6 @@ namespace LAPxv8
                 }
             }
         }
-
-
-
-
-
         private void UpdateButtonStateForCurrentSelectedResult(int signalPathIndex, int measurementIndex, int resultIndex, bool isUpperLimit)
         {
             currentIsUpperLimit = isUpperLimit;
@@ -2348,7 +2224,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void ApplyChangesToAllChannelsForXYValues(int sourceChannelIndex, int rowIndex, double newXValue, double newYValue)
         {
 
@@ -2554,7 +2429,9 @@ namespace LAPxv8
                 Location = new Point(10, 10), // Adjust as needed
                 Size = new Size(600, 700), // Fixed size of the panel
                 AutoScroll = true, // Enable automatic scrolling
-                AutoScrollMinSize = new Size(580, 0), // Set the minimum scrollable size (width less than panel width to avoid horizontal scroll)
+                AutoScrollMinSize = new Size(580, 0),
+                BackColor = System.Drawing.Color.FromArgb(45, 45, 45) // Set dark grey background for the panel
+
             };
 
             // Initialize the TableLayoutPanel within the scrollable Panel
@@ -2564,13 +2441,35 @@ namespace LAPxv8
                 Size = new Size(580, 2000), // Width less than the scrollPanel's width to avoid horizontal scrollbar
                 AutoSize = false,
                 Dock = DockStyle.Top, // Dock to the top and allow vertical expansion
-                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60), // Set dark grey background for the table
+                ForeColor = System.Drawing.Color.White // Set white text for all controls added to the table
             };
 
-            // Add column headers
-            tableLayoutPanel.Controls.Add(new Label { Text = "Signal Path | Measurement | Result", AutoSize = true }, 0, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Upper1 Limit", AutoSize = true }, 1, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Lower Limit", AutoSize = true }, 2, 0);
+            // Add column headers with dark mode styling
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Signal Path | Measurement | Result",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60) // Match the table's background
+            }, 0, 0);
+
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Upper Limit",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60)
+            }, 1, 0);
+
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Lower Limit",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60)
+            }, 2, 0);
 
             int currentRow = 1;
             foreach (var signalPath in checkedData)
@@ -2583,7 +2482,14 @@ namespace LAPxv8
                         Button upperLimitButton = CreateLimitButton(result, true);
                         Button lowerLimitButton = CreateLimitButton(result, false);
 
-                        tableLayoutPanel.Controls.Add(new Label { Text = resultText, AutoSize = true }, 0, currentRow);
+                        tableLayoutPanel.Controls.Add(new Label
+                        {
+                            Text = resultText,
+                            AutoSize = true,
+                            ForeColor = System.Drawing.Color.White,
+                            BackColor = System.Drawing.Color.FromArgb(60, 60, 60)
+                        }, 0, currentRow);
+
                         tableLayoutPanel.Controls.Add(upperLimitButton, 1, currentRow);
                         tableLayoutPanel.Controls.Add(lowerLimitButton, 2, currentRow);
 
@@ -2605,84 +2511,58 @@ namespace LAPxv8
         private List<string> missSignal = new List<string>();
         private List<string> missMeasure = new List<string>();
         private List<string> missResult = new List<string>();
-
-        /*private void InitializeTableadd1(int Row, string newSignal, string newMeasurement, string newResult)
-        {
-            clearTable();
-
-            tableLayoutPanel.Controls.Add(new Label { Text = "Signal Path | Measurement | Result", AutoSize = true }, 0, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Upper1 Limit", AutoSize = true }, 1, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Lower Limit", AutoSize = true }, 2, 0);
-
-            string resultText;
-            Button upperLimitButton;
-            Button lowerLimitButton;
-            int currentRow = 1;
-
-            foreach (var signalPath in checkedData)
-            {
-                foreach (var measurement in signalPath.Measurements)
-                {
-                    foreach (var result in measurement.Results)
-                    {
-
-                        resultText = $"{signalPath.Name} | {measurement.Name} | {result.Name}";
-                        upperLimitButton = CreateLimitButton(result, true);
-                        lowerLimitButton = CreateLimitButton(result, false);
-
-                        tableLayoutPanel.Controls.Add(new Label { Text = resultText, AutoSize = true }, 0, currentRow);
-                        tableLayoutPanel.Controls.Add(upperLimitButton, 1, currentRow);
-                        tableLayoutPanel.Controls.Add(lowerLimitButton, 2, currentRow);
-
-                        currentRow++;
-
-                    }
-                }
-            }
-            /*if (!missSignal.Contains(newSignal))
-            {
-                missSignal.Add(newSignal);
-            }
-
-            if (!missMeasure.Contains(newMeasurement))
-            {
-                missMeasure.Add(newMeasurement);
-            }
-
-            if (!missResult.Contains(newResult))
-            {
-                missResult.Add(newResult);
-            }
-        missSignal.Add(newSignal);
-            missMeasure.Add(newMeasurement);
-            missResult.Add(newResult);
-            for (int x = 0; x < newMeasureCount; x++)
-            { 
-            var resultData = new Lyceum_Extraction.FormAudioPrecision8.ResultData { Name = newResult };
-            resultText = $"{missSignal[x]} | {missMeasure[x]} | {missResult[x]}";
-            upperLimitButton = CreateLimitButton(resultData, true);
-            lowerLimitButton = CreateLimitButton(resultData, false);
-
-            tableLayoutPanel.Controls.Add(new Label { Text = resultText, AutoSize = true }, 0, currentRow);
-            tableLayoutPanel.Controls.Add(upperLimitButton, 1, currentRow);
-            tableLayoutPanel.Controls.Add(lowerLimitButton, 2, currentRow);
-                currentRow++;
-            }
-
-            newMeasureCount++;
-              
-            tableLayoutPanel.ResumeLayout(true);
-
-        }
-        */
-
         private void InitializeTableadd1(int Row, string newSignal, string newMeasurement, string newResult)
         {
             clearTable();
 
-            tableLayoutPanel.Controls.Add(new Label { Text = "Signal Path | Measurement | Result", AutoSize = true }, 0, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Upper1 Limit", AutoSize = true }, 1, 0);
-            tableLayoutPanel.Controls.Add(new Label { Text = "Lower Limit", AutoSize = true }, 2, 0);
+            // Create a Panel to hold the TableLayoutPanel and allow for vertical scrolling
+            Panel scrollPanel = new Panel
+            {
+                Location = new Point(10, 10), // Adjust as needed
+                Size = new Size(600, 700), // Fixed size of the panel
+                AutoScroll = true, // Enable automatic scrolling
+                AutoScrollMinSize = new Size(580, 0),
+                BackColor = System.Drawing.Color.FromArgb(45, 45, 45) // Set dark grey background for the panel
+
+            };
+
+            // Initialize the TableLayoutPanel within the scrollable Panel
+            tableLayoutPanel = new TableLayoutPanel
+            {
+                ColumnCount = 3,
+                Size = new Size(580, 2000), // Width less than the scrollPanel's width to avoid horizontal scrollbar
+                AutoSize = false,
+                Dock = DockStyle.Top, // Dock to the top and allow vertical expansion
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60), // Set dark grey background for the table
+                ForeColor = System.Drawing.Color.White // Set white text for all controls added to the table
+            };
+
+
+            // Add column headers with dark mode styling
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Signal Path | Measurement | Result",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60) // Match the table's background
+            }, 0, 0);
+
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Upper Limit",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60)
+            }, 1, 0);
+
+            tableLayoutPanel.Controls.Add(new Label
+            {
+                Text = "Lower Limit",
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.White,
+                BackColor = System.Drawing.Color.FromArgb(60, 60, 60)
+            }, 2, 0);
 
             string resultText;
             Button upperLimitButton;
@@ -2723,9 +2603,6 @@ namespace LAPxv8
             tableLayoutPanel.ResumeLayout(true);
 
         }
-
-
-
         private Button CreateLimitButton(ResultData result, bool isUpperLimit)
         {
             string buttonText = isUpperLimit ? (result?.UpperLimitEnabled ?? false ? "View" : "Edit") : (result?.LowerLimitEnabled ?? false ? "View" : "Edit");
@@ -2766,7 +2643,6 @@ namespace LAPxv8
             UpdateButtonStatesForResult(currentSelectedResult);
             return limitButton;
         }
-
         private void InitializeGraphPanel()
         {
             graphPanel = new Panel
@@ -2813,7 +2689,6 @@ namespace LAPxv8
             limitDataTextBox.Text = limitDataBuilder.ToString();
             //APx.ShowMeasurement(result.SignalPathIndex, result.MeasurementIndex);
         }
-
         private void DeleteEntireLimitButton_Click(object sender, EventArgs e)
         {
             if (currentSelectedResult == null)
@@ -2888,7 +2763,6 @@ namespace LAPxv8
             UpdateButtonStatesForResult(currentSelectedResult);
 
         }
-
         private void DeleteLimitButton_Click(object sender, EventArgs e)
         {
             if (limitValuesTabControl.SelectedTab.Controls[0] is DataGridView dataGridView)
@@ -2927,7 +2801,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void UpdateCurrentResultAndReduceSelectedPoints(int channelIndex, List<MeterValue> selectedMeterValues)
         {
             if (currentSelectedResult == null || !channelData.ContainsKey(channelIndex))
@@ -2971,7 +2844,6 @@ namespace LAPxv8
                 currentSelectedResult.YValueLowerLimitValues = newYValues.ToArray();
             }
         }
-
         private void LogError(string message)
         {
             MessageBox.Show(message, "Error", MessageBoxButtons.OK, FormsMessageBoxIcon.Error);
@@ -2979,72 +2851,86 @@ namespace LAPxv8
             // Append the error message to the limitDataTextBox
             limitDataTextBox.AppendText($"Error: {message}\r\n");
         }
-
         private void DisplayGraph(ResultData result, bool isUpperLimit)
         {
             // Clear previous graph and legend
             graphPanel.Controls.Clear();
             Chart chart = new Chart { Dock = DockStyle.Fill };
-            ChartArea chartArea = new ChartArea();
+            ChartArea chartArea = new ChartArea
+            {
+                BackColor = System.Drawing.Color.FromArgb(45, 45, 45), // Set background color of the chart area
+                BorderColor = System.Drawing.Color.Gray,
+                BorderDashStyle = ChartDashStyle.Solid
+            };
 
-            // Conditionally set the axis titles based on the type of result values
-            string xAxisTitle = result.ResultValueType == "XY Values" ? result.XUnit : result.MeterUnit;
-            string yAxisTitle = result.ResultValueType == "XY Values" ? result.YUnit : result.MeterUnit;
+            // Set axis properties for dark mode
+            chartArea.AxisX.Title = result.ResultValueType == "XY Values" ? result.XUnit : result.MeterUnit;
+            chartArea.AxisX.TitleForeColor = System.Drawing.Color.White;
+            chartArea.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
+            chartArea.AxisX.LineColor = System.Drawing.Color.White;
+            chartArea.AxisX.MajorGrid.LineColor = System.Drawing.Color.Gray;
+            chartArea.AxisX.MinorGrid.LineColor = System.Drawing.Color.DimGray;
 
-            chartArea.AxisX.Title = xAxisTitle;
-            chartArea.AxisY.Title = yAxisTitle;
+            chartArea.AxisY.Title = result.ResultValueType == "XY Values" ? result.YUnit : result.MeterUnit;
+            chartArea.AxisY.TitleForeColor = System.Drawing.Color.White;
+            chartArea.AxisY.LabelStyle.ForeColor = System.Drawing.Color.White;
+            chartArea.AxisY.LineColor = System.Drawing.Color.White;
+            chartArea.AxisY.MajorGrid.LineColor = System.Drawing.Color.Gray;
+            chartArea.AxisY.MinorGrid.LineColor = System.Drawing.Color.DimGray;
 
             // Find the names of the Signal Path and Measurement associated with the result
             var signalPath = checkedData.FirstOrDefault(sp => sp.Measurements.Any(m => m.Results.Contains(result)));
             var measurement = signalPath?.Measurements.FirstOrDefault(m => m.Results.Contains(result));
 
-            // Set the chart title with the names
+            // Set the chart title with dark mode styling
             string chartTitleText = $"{signalPath?.Name ?? "N/A"} | {measurement?.Name ?? "N/A"} | {result.Name} - {(isUpperLimit ? "Upper" : "Lower")} Limit";
-            Title chartTitle = new Title(chartTitleText);
+            Title chartTitle = new Title(chartTitleText)
+            {
+                ForeColor = System.Drawing.Color.White, // Title text color
+                Font = new System.Drawing.Font("Segoe UI", 12, FontStyle.Bold) // Adjust font if needed
+            };
             chart.Titles.Add(chartTitle);
 
-            // Set the scale type for X and Y axis based on the selection in the combo boxes
-            chartArea.AxisX.IsLogarithmic = xScaleComboBox.SelectedItem.ToString() == "Logarithmic";
-            chartArea.AxisY.IsLogarithmic = yScaleComboBox.SelectedItem.ToString() == "Logarithmic";
+            // Configure chart overall appearance for dark mode
+            chart.BackColor = System.Drawing.Color.FromArgb(45, 45, 45); // Chart background
+            chart.ForeColor = System.Drawing.Color.White; // General text color
+
             chart.Series.Clear();
             chart.Legends.Clear();
-            Legend legend = new Legend();
+            Legend legend = new Legend
+            {
+                BackColor = System.Drawing.Color.FromArgb(45, 45, 45), // Legend background
+                ForeColor = System.Drawing.Color.White // Legend text color
+            };
             chart.Legends.Add(legend);
             chart.Legends[0].Enabled = false; // Disable legend by default
 
-            // Ensure that addButtonBefore and addButtonAfter are initialized
+            // Initialize add point buttons if null
             if (addButtonBefore == null || addButtonAfter == null)
             {
-                InitializeAddPointButtons(); // Call the method to initialize the buttons if they're null
+                InitializeAddPointButtons();
             }
 
-            // Now safely check the ResultValueType and set visibility of the buttons
+            // Show or hide add point buttons based on conditions
             if (result != null && result.ResultValueType == "XY Values")
             {
                 if (result.XValueUpperLimitValues.Length == 0 && isUpperLimit)
                 {
                     addButtonBefore.Visible = false;
                     addButtonAfter.Visible = true;
-                    addButtonAfter.Text = "add point";
-
+                    addButtonAfter.Text = "Add Point";
                 }
                 else if (result.XValueLowerLimitValues.Length == 0 && !isUpperLimit)
                 {
                     addButtonBefore.Visible = false;
                     addButtonAfter.Visible = true;
-                    addButtonAfter.Text = "add point";
-
+                    addButtonAfter.Text = "Add Point";
                 }
                 else
                 {
                     addButtonAfter.Text = "Add Point After";
                     addButtonBefore.Visible = addButtonAfter.Visible = true;
                 }
-
-
-
-
-
             }
             else
             {
@@ -3119,7 +3005,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void ConfigureLegendForXY(Chart chart)
         {
             Legend legend = chart.Legends[0];
@@ -3128,7 +3013,6 @@ namespace LAPxv8
             legend.Alignment = StringAlignment.Center;
             legend.IsDockedInsideChartArea = false; // Ensure the legend does not overlap with the chart area
         }
-
         private Series CreateSeriesForChannel(string seriesName, System.Drawing.Color color, double[] xValues, double[] yValues)
         {
             Series series = new Series(seriesName)
@@ -3146,7 +3030,6 @@ namespace LAPxv8
 
             return series;
         }
-
         private System.Drawing.Color[] GenerateColors(System.Drawing.Color baseColor, int numberOfColors)
         {
             System.Drawing.Color[] colors = new System.Drawing.Color[numberOfColors];
@@ -3158,7 +3041,6 @@ namespace LAPxv8
             }
             return colors;
         }
-
         private void DisplayMeterValues(Chart chart, ResultData result, bool isUpperLimit)
         {
             Series meterSeries = new Series
@@ -3180,7 +3062,6 @@ namespace LAPxv8
 
             chart.Series.Add(meterSeries);
         }
-
         private void SetAxisLimits(Axis axis, string startText, string endText, bool isAutoRange)
         {
             // The maximum and minimum values that can fit into a decimal
@@ -3206,32 +3087,6 @@ namespace LAPxv8
                 }
             }
         }
-
-
-        /*private void DisplayMeterLimitGraph(Chart chart, ResultData result, bool isUpperLimit)
-        {
-            // Change implementation to use 'X's instead of bars
-            Series meterSeries = new Series
-            {
-                ChartType = SeriesChartType.Point,
-                MarkerStyle = MarkerStyle.Cross,
-                MarkerSize = 10,
-                Color = isUpperLimit ? System.Drawing.Color.Red : System.Drawing.Color.Blue
-            };
-
-            double[] meterValues = isUpperLimit ? result.MeterUpperLimitValues : result.MeterLowerLimitValues;
-            if (meterValues != null)
-            {
-                for (int i = 0; i < meterValues.Length; i++)
-                {
-                    meterSeries.Points.AddXY(i + 1, meterValues[i]);
-                }
-            }
-
-            chart.Series.Add(meterSeries);
-        }*/
-
-
         private void InitializeGraphPreferences()
         {
             int labelOffsetX = 110; // Horizontal offset for labels to align with input fields
@@ -3364,7 +3219,6 @@ namespace LAPxv8
                 scaleComboBox.SelectedIndex = 0; // Reset to Linear
             }
         }
-
         private void SetDefaultAxisValues()
         {
             // These should be replaced with the actual default values or calculations
@@ -3383,7 +3237,6 @@ namespace LAPxv8
             };
             parent.Controls.Add(label);
         }
-
         private void AutoRangeXCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             bool isAutoRangeEnabled = autoRangeXCheckBox.Checked;
@@ -3397,7 +3250,6 @@ namespace LAPxv8
 
             UpdateGraph();
         }
-
         private void AutoRangeYCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             bool isAutoRangeEnabled = autoRangeYCheckBox.Checked;
@@ -3411,8 +3263,6 @@ namespace LAPxv8
 
             UpdateGraph();
         }
-
-
         private void UpdateGraph()
         {
             if (currentSelectedResult == null)
@@ -3496,18 +3346,15 @@ namespace LAPxv8
             updateGraphTimer.Stop();
             updateGraphTimer.Start();
         }
-
         private void UpdateGraphTimer_Tick(object sender, EventArgs e)
         {
             // Stop the timer and update the graph
             updateGraphTimer.Stop();
             UpdateGraph();
         }
-
-
-
         private void InitializeMeterValuesBindingList()
         {
+            AdjustControlPositions(50);
             foreach (TabPage tabPage in limitValuesTabControl.TabPages)
             {
                 if (tabPage.Controls.Count > 0 && tabPage.Controls[0] is DataGridView dataGridView)
@@ -3517,7 +3364,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void UpdateMeterValuesDataGridView(ResultData result, bool isUpperLimit)
         {
             try
@@ -3553,7 +3399,6 @@ namespace LAPxv8
                 // LogError("Failed to update meter values in DataGridView: " + ex.Message);
             }
         }
-
         private void AddRowToDataGridView(bool addBefore)
         {
             int channelIndex = limitValuesTabControl.SelectedIndex;
@@ -3577,7 +3422,6 @@ namespace LAPxv8
             UpdateResultDataArraysForSpecificChannel(channelIndex);
             UpdateLimitDataTextBox(currentSelectedResult, currentIsUpperLimit);
         }
-
         private void UpdateResultDataArraysForSpecificChannel(int channelIndex)
         {
             if (currentSelectedResult == null || !channelData.ContainsKey(channelIndex))
@@ -3629,7 +3473,6 @@ namespace LAPxv8
             }
             RefreshDataGridViewForAllChannels();
         }
-
         private void RefreshDataGridView(int channelIndex)
         {
             // Assuming each TabPage corresponds to a channel and contains a DataGridView as its first control
@@ -3643,7 +3486,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void UpdateXYValuesTextBox(List<double> xValues, List<double> yValues)
         {
             TextBox xyValuesTextBox = new TextBox
@@ -3662,7 +3504,6 @@ namespace LAPxv8
             }
             xyValuesTextBox.Text = sb.ToString();
         }
-
         private void RefreshDataGridViewForAllChannels()
         {
             // Refresh DataGridView for all channels
@@ -3680,7 +3521,6 @@ namespace LAPxv8
             }
         }
         private string filepath;
-
         private string getFile()
         {
             return filepath;
@@ -3689,7 +3529,6 @@ namespace LAPxv8
         {
             filepath = newfilepath;
         }
-
         private void ImportJsonFile()
         {
             OpenFileDialog openFileDialog = new OpenFileDialog
@@ -3749,7 +3588,6 @@ namespace LAPxv8
             }
 
         }
-
         private async void CrossReferenceAndApplyLimits(List<JsonLimitData> importedData)
         {
             bool limitsUpdated = false;
@@ -3791,7 +3629,6 @@ namespace LAPxv8
                 RefreshUIComponents();
             }
         }
-
         private void RefreshUIComponents()
         {
             if (currentSelectedResult != null)
@@ -3831,7 +3668,6 @@ namespace LAPxv8
                 LogToTextBox("No result selected, unable to refresh DataGridView and Graph.");
             }
         }
-
         private void UpdateResultWithJsonData(ResultData result, JsonLimitData jsonData)
         {
             // Check if either result or jsonData is null
@@ -3886,10 +3722,7 @@ namespace LAPxv8
             currentIsUpperLimit = true;
             UpdateButtonStatesForResult(result);
         }
-
-
         public delegate void LimitImportedHandler(List<string[]> limitData, bool applyToSpecificChannel, int selectedChannel);
-
         // Define a class for meter values that will be used for data binding
         public class MeterValue : INotifyPropertyChanged
         {
@@ -3983,7 +3816,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private void FormAPLimitEditor_Load(object sender, EventArgs e)
         {
 

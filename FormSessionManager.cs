@@ -46,23 +46,25 @@ namespace LAPxv8
         private TreeView resultsTreeView;
         private TextBox detailsTextBox;
         private Panel graphPanel;
+        private Label graphTitleLabel;
         private ComboBox globalPropertyComboBox;
+        private Dictionary<string, string> currentGlobalProperties = new Dictionary<string, string>();
         private ComboBox resultDetailComboBox;
         private TextBox logTextBox;
         private TextBox searchTextBox;
+        private Label searchLabel;
         private ToolTip sessionToolTip;
+        private Panel configurationsPanel;
 
         // Method that triggers the event
         public void TriggerSessionCreation(ProjectSession session)
         {
             OnSessionDataCreated?.Invoke(session);
         }
-
-        public FormSessionManager(string jsonData, List<ProjectSession> data, SessionMode mode, FormAudioPrecision8 formAudioPrecision8, Action<string> logger, string accessToken, string refreshToken)
+        public FormSessionManager(string jsonData, List<ProjectSession> data, SessionMode mode, FormAudioPrecision8 formAudioPrecision8, string accessToken, string refreshToken)
         {
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
-            this.externalLogger = logger;
             this.mode = mode;
             this.sessions = data ?? new List<ProjectSession>();
             this.formAudioPrecision8 = formAudioPrecision8;
@@ -76,7 +78,7 @@ namespace LAPxv8
 
                 if (logTextBox != null)
                 {
-                    AppendLog(logTextBox, "Received data: " + dataPreview);
+                    LogManager.AppendLog($"Received data: " + dataPreview);
                 }
                 else
                 {
@@ -88,7 +90,7 @@ namespace LAPxv8
                 string message = "Received data is null or empty.";
                 if (logTextBox != null)
                 {
-                    AppendLog(logTextBox, message);
+                    LogManager.AppendLog(logTextBox, message);
                 }
                 else
                 {
@@ -104,49 +106,48 @@ namespace LAPxv8
                 {
                     sessions.Add(newSession);
                     LoadSessions();
-                    AppendLog(LogTextBox, "New session added: " + newSession.Title);
+                    LogManager.AppendLog($"New session added: " + newSession.Title);
                 };
             }
 
-            LoadSessions();
+            //LoadSessions();
+            // Force window size after initializing UI
+            this.Size = new Size(2000, 1000); // Set desired window size
+            this.MinimumSize = new Size(2000, 1000); // Prevent shrinking smaller than this
+
             this.Load += FormSessionManager_Load;
             Console.WriteLine("FormSessionManager - Constructor: formAudioPrecision8 is " + (formAudioPrecision8 != null ? "not null" : "null"));
         }
-
-        public TextBox LogTextBox
-        {
-            get { return logTextBox; }
-        }
-
         private void HandleNewSession(ProjectSession newSession)
         {
             sessions.Add(newSession);
             LoadSessions();
-            AppendLog(LogTextBox, "New session added: " + newSession.Title);
+            LogManager.AppendLog($"New session added: " + newSession.Title);
         }
 
         private string currentSessionData;
-
         public ProjectSession CreatedSession { get; private set; }
-
         // Method to add a new session and refresh the list
         private void AddNewSessionAndLoad(ProjectSession newSession)
         {
             sessions.Add(newSession);
             LoadSessions(); // Refresh the list with the new session
         }
-
         private void InitializeComponents()
         {
             // Form settings
             this.BackColor = Color.FromArgb(45, 45, 45); // Dark mode background
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 10);
-            this.Size = new Size(1400, 900);
+            this.Size = new Size(2000, 1000);
             this.FormBorderStyle = FormBorderStyle.None; // Remove default title bar
             this.MaximizeBox = false;
 
-            // Assuming BaseForm provides title bar and menu strip, no need to add them here
+            // Vertical alignment and sizing
+            int frameHeight = 280;
+            int frameWidth = 300;
+            int verticalSpacing = 20;
+
 
             // If a MenuStrip already exists in the base form, use it
             MenuStrip menuStrip = this.MainMenuStrip;
@@ -167,48 +168,43 @@ namespace LAPxv8
                 menuStrip.Items.Add(optionsMenu);
             }
 
-            // Vertical alignment and sizing
-            int frameHeight = 220;
-            int frameWidth = 300;
-            int verticalSpacing = 20;
+            // Search bar (Position adjusted in FormSessionManager_Load)
+            searchLabel = new Label
+            {
+                Text = "Search for Session:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true
+            };
+            this.Controls.Add(searchLabel);
 
-            // Create and add a group box for sessions
+            searchTextBox = new TextBox
+            {
+                Width = 1200,
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+            searchTextBox.TextChanged += SearchTextBox_TextChanged;
+            this.Controls.Add(searchTextBox);
+
+            // Dynamic position adjustment happens in FormSessionManager_Load
+            this.Load += FormSessionManager_Load;
+
+            // Set the starting Y-position for panels below the search bar
+            int currentYPosition = searchTextBox.Bottom + verticalSpacing;
+
+            // Create and add a group box for Sessions
             GroupBox sessionsGroupBox = new GroupBox
             {
                 Text = "Sessions",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80),
+                Location = new Point(20, currentYPosition + 50),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(sessionsGroupBox);
-
-            // Add a "Search" label next to the search text box.
-            Label searchLabel = new Label
-            {
-                Text = "Search",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.White,
-                Location = new Point(20, menuStrip.Bottom + 10),
-                AutoSize = true
-            };
-            this.Controls.Add(searchLabel);
-
-            // Initialize and set properties for the search text box
-            searchTextBox = new TextBox
-            {
-                Location = new Point(searchLabel.Right + 10, menuStrip.Bottom + 10),
-                Width = 300,
-                //PlaceholderText = "Search sessions...",
-                Font = new Font("Segoe UI", 10),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45),
-                Dock = DockStyle.Top
-            };
-            searchTextBox.TextChanged += SearchTextBox_TextChanged;
-            // Add search box to the form
-            this.Controls.Add(searchTextBox);
 
             sessionsListBox = new ListBox
             {
@@ -218,24 +214,19 @@ namespace LAPxv8
                 HorizontalScrollbar = true,
                 Dock = DockStyle.Fill
             };
-            sessionsListBox.MouseMove += SessionsListBox_MouseMove;
-            sessionsListBox.MouseLeave += SessionsListBox_MouseLeave;
-            // Initialize ToolTip for displaying session names
-            sessionToolTip = new ToolTip();
-
-            sessionsListBox.SelectedIndexChanged += SessionsListBox_SelectedIndexChanged;
             sessionsGroupBox.Controls.Add(sessionsListBox);
+            sessionsListBox.SelectedIndexChanged += SessionsListBox_SelectedIndexChanged;
 
+            currentYPosition += frameHeight + verticalSpacing + 50;
 
-
-            // Create and add a group box for results
+            /// Create and add a group box for Results
             GroupBox resultsGroupBox = new GroupBox
             {
                 Text = "Results",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + frameHeight + verticalSpacing),
+                Location = new Point(20, currentYPosition),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(resultsGroupBox);
@@ -247,17 +238,19 @@ namespace LAPxv8
                 ForeColor = Color.White,
                 Dock = DockStyle.Fill
             };
-            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
             resultsGroupBox.Controls.Add(resultsTreeView);
+            resultsTreeView.AfterSelect += ResultsTreeView_AfterSelect;
 
-            // Create and add a group box for details text box
+            currentYPosition += frameHeight + verticalSpacing;
+
+            // Create and add a group box for Details Text
             GroupBox detailsTextGroupBox = new GroupBox
             {
                 Text = "Details Text",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + 2 * (frameHeight + verticalSpacing)),
+                Location = new Point(20, currentYPosition),
                 Size = new Size(frameWidth, frameHeight)
             };
             this.Controls.Add(detailsTextGroupBox);
@@ -274,29 +267,10 @@ namespace LAPxv8
             };
             detailsTextGroupBox.Controls.Add(detailsTextBox);
 
-            // Create and add a group box for log text box
-            GroupBox logGroupBox = new GroupBox
-            {
-                Text = "Log",
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(20, 80 + 3 * (frameHeight + verticalSpacing)),
-                Size = new Size(frameWidth, frameHeight)
-            };
-            this.Controls.Add(logGroupBox);
+            currentYPosition += frameHeight + verticalSpacing;
 
-            logTextBox = new TextBox
-            {
-                Font = new Font("Consolas", 10),
-                BackColor = Color.FromArgb(60, 60, 60),
-                ForeColor = Color.White,
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Dock = DockStyle.Fill,
-                ReadOnly = true
-            };
-            logGroupBox.Controls.Add(logTextBox);
+            // Calculate the remaining height for the graph panel
+            int availableHeight = this.Height - currentYPosition - 40;
 
             // Adjust the size of the GUI window to fit all elements vertically
             int totalHeight = 80 + 4 * (frameHeight + verticalSpacing);
@@ -305,24 +279,37 @@ namespace LAPxv8
             // Reduce the height of the graph panel
             int reducedGraphPanelHeight = totalHeight - 100; // Reduce the height by 100 pixels, adjust as necessary
 
-            // Create and add a group box for the graph panel on the right-hand side
+            // Create a title label for the graph
+            graphTitleLabel = new Label
+            {
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(20, 70),
+                Text = "Graph Title"
+            };
+
+            // Create graph panel
+            graphPanel = new Panel
+            {
+                Location = new Point(20, 90),
+                Size = new Size(1100, 700), 
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+
             GroupBox graphGroupBox = new GroupBox
             {
                 Text = "Graph",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(45, 45, 45),
-                Location = new Point(frameWidth + 60, 80), // Adjusted to start on the right side of other frames
-                Size = new Size(this.Width - frameWidth - 100, reducedGraphPanelHeight) // Reduced height
+                Location = new Point(340, 100),
+                Size = new Size(1200, 800)
             };
-            this.Controls.Add(graphGroupBox);
 
-            graphPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(45, 45, 45)
-            };
+            graphGroupBox.Controls.Add(graphTitleLabel);
             graphGroupBox.Controls.Add(graphPanel);
+            this.Controls.Add(graphGroupBox);
 
             // Additional controls like ComboBoxes and Labels
             globalPropertyComboBox = new ComboBox
@@ -334,7 +321,7 @@ namespace LAPxv8
                 BackColor = Color.FromArgb(60, 60, 60),
                 ForeColor = Color.White
             };
-            this.Controls.Add(globalPropertyComboBox);
+            graphGroupBox.Controls.Add(globalPropertyComboBox);
 
             resultDetailComboBox = new ComboBox
             {
@@ -346,6 +333,108 @@ namespace LAPxv8
                 ForeColor = Color.White
             };
             this.Controls.Add(resultDetailComboBox);
+        }
+        private async void FormSessionManager_Load(object sender, EventArgs e)
+        {
+            LogManager.AppendLog($"[FormSessionManager] Loading...");
+
+            try
+            {
+                systemKey = Cryptography.GetOrCreateEncryptionKey();
+                if (string.IsNullOrEmpty(systemKey))
+                {
+                    LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: Encryption key is NULL. Cannot proceed.");
+                    DisableFormControls();
+                    return;
+                }
+
+                LogManager.AppendLog($"[FormSessionManager] ✅ Encryption key retrieved successfully.");
+
+                bool isAuthorized = await Cryptography.IsAuthorizedForDecryption(accessToken);
+                if (!isAuthorized)
+                {
+                    MessageBox.Show("User not authorized for decryption. Contact Lyceum support.", "Authorization Failed", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+                    DisableFormControls();
+                    return;
+                }
+
+                LogManager.AppendLog($"[FormSessionManager] ✅ Authorization successful. Loading sessions...");
+                await Task.Run(() => LoadSessions());
+
+                // Adjust form position and size based on parent form
+                AdjustWindowPosition();
+
+                // ✅ Adjust search bar position after menuStrip is fully loaded
+                if (this.MainMenuStrip != null)
+                {
+                    int menuBottom = this.MainMenuStrip.Bottom + 10; // Ensure proper spacing
+                    searchLabel.Location = new Point(20, menuBottom);
+                    searchTextBox.Location = new Point(searchLabel.Right + 10, menuBottom - 4);
+                }
+                else
+                {
+                    // Default positioning in case menuStrip isn't loaded properly
+                    searchLabel.Location = new Point(20, 50);
+                    searchTextBox.Location = new Point(searchLabel.Right + 10, 46);
+                }
+
+                this.Size = new Size(1600, 1000); // Ensure size is applied after loading
+                this.WindowState = FormWindowState.Normal; // Prevent forced maximization
+                LogManager.AppendLog($"[FormSessionManager] ✅ UI positioning adjustments completed.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"[FormSessionManager] ❌ ERROR: {ex.Message}");
+                MessageBox.Show($"An error occurred during form load: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+            }
+        }
+        private void AdjustWindowPosition()
+        {
+            if (formAudioPrecision8 != null)
+            {
+                this.StartPosition = FormStartPosition.Manual;
+                this.Size = new Size(1600, 1000); // Ensure size isn't overridden
+                this.Location = new Point(
+                    formAudioPrecision8.Bounds.Left + (formAudioPrecision8.Bounds.Width - this.Width) / 2,
+                    formAudioPrecision8.Bounds.Top + (formAudioPrecision8.Bounds.Height - this.Height) / 2
+                );
+            }
+            else
+            {
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.Size = new Size(1600, 1000);
+            }
+        }
+
+        private void DisableFormControls()
+        {
+            // Disable all controls except the log text box to allow viewing logs
+            if (createNewButton != null)
+                createNewButton.Enabled = false;
+
+            if (sessionsListBox != null)
+                sessionsListBox.Enabled = false;
+
+            if (resultsTreeView != null)
+                resultsTreeView.Enabled = false;
+
+            if (detailsTextBox != null)
+                detailsTextBox.Enabled = false;
+
+            if (globalPropertyComboBox != null)
+                globalPropertyComboBox.Enabled = false;
+
+            if (resultDetailComboBox != null)
+                resultDetailComboBox.Enabled = false;
+
+            // Leave logTextBox enabled to display logs even if authorization fails
+            if (logTextBox != null)
+            {
+                logTextBox.Enabled = true;
+                LogManager.AppendLog($"Logs enabled for viewing.");
+            }
+
+            LogManager.AppendLog($"Form controls have been disabled except for logs.");
         }
         // Method to filter sessions in the ListBox based on search query
         private void SearchTextBox_TextChanged(object sender, EventArgs e)
@@ -378,8 +467,15 @@ namespace LAPxv8
         {
             sessionToolTip.SetToolTip(sessionsListBox, string.Empty);
         }
+
         private void PopulateResultsTreeView(List<CheckedData> checkedData)
         {
+            if (resultsTreeView.InvokeRequired)
+            {
+                resultsTreeView.Invoke(new Action(() => PopulateResultsTreeView(checkedData)));
+                return;
+            }
+
             resultsTreeView.Nodes.Clear();
 
             foreach (var signalPath in checkedData)
@@ -398,93 +494,136 @@ namespace LAPxv8
                 resultsTreeView.Nodes.Add(signalPathNode);
             }
 
-            //resultsTreeView.ExpandAll(); // Optionally expand all nodes
+            LogManager.AppendLog($"✅ ResultsTreeView populated with {checkedData.Count} signal paths.");
         }
+
         private void ResultsTreeView_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (e.Node.Level == 2) // If a result node is selected
+            if (e.Node == null)
+            {
+                LogManager.AppendLog("⚠️ No node selected in ResultsTreeView.");
+                return;
+            }
+
+            LogManager.AppendLog($"📌 Node selected: {e.Node.Text}, Level: {e.Node.Level}");
+
+            string[] pathParts = e.Node.FullPath.Split('\\');
+            if (pathParts.Length < 3)
+            {
+                LogManager.AppendLog("⚠️ Node selection does not have enough path levels.");
+                return;
+            }
+
+            string signalPathName = pathParts[0];
+            string measurementName = pathParts[1];
+            string resultName = pathParts[2];
+
+            graphTitleLabel.Text = $"{signalPathName} - {measurementName} - {resultName}";
+
+            // Retrieve the selected session from the list box
+            ProjectSession selectedSession = null;
+            if (sessionsListBox.SelectedItem != null)
+            {
+                string selectedTitle = sessionsListBox.SelectedItem.ToString();
+                selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
+            }
+
+            if (selectedSession == null)
+            {
+                LogManager.AppendLog("❌ No session selected. Cannot display properties.");
+                return;
+            }
+
+            if (selectedSession.GlobalProperties != null && selectedSession.GlobalProperties.Count > 0)
+            {
+                LogManager.AppendLog($"✅ Displaying {selectedSession.GlobalProperties.Count} global properties.");
+                DisplayGlobalProperties(selectedSession.GlobalProperties);
+            }
+            else
+            {
+                LogManager.AppendLog("⚠️ No global properties available.");
+                detailsTextBox.AppendText($"⚠️ No global properties available.{Environment.NewLine}");
+            }
+
+            // Ensure a valid result node is selected
+            if (e.Node.Level == 2)
             {
                 string selectedResultPath = e.Node.FullPath;
+                LogManager.AppendLog($"🔍 Full Path of Selected Node: {selectedResultPath}");
+
                 var resultData = FindResultData(selectedResultPath);
 
                 if (resultData != null)
                 {
+                    LogManager.AppendLog($"✅ Result data found for {selectedResultPath}, updating UI.");
+                    detailsTextBox.Clear();
                     DisplayResultDetails(resultData);
-                    LogResultData(resultData); // Ensure this method is called
+                    LogResultData(resultData);
                     DisplayGraph(resultData);
                 }
                 else
                 {
-                    AppendLog(logTextBox, "No result data found for the selected item.");
+                    LogManager.AppendLog($"❌ No result data found for {selectedResultPath}.");
                 }
             }
+            else
+            {
+                LogManager.AppendLog($"⚠️ Selected node is not a valid result node. Level: {e.Node.Level}");
+            }
         }
+
         void CreateNewButton_Click(object sender, EventArgs e)
         {
             string sessionTitle = PromptForSessionName();
-            if (!string.IsNullOrEmpty(sessionTitle))
+            if (string.IsNullOrEmpty(sessionTitle))
+                return;
+
+            if (sessions.Any(s => s.Title == sessionTitle))
             {
-                if (sessions.Any(s => s.Title == sessionTitle))
-                {
-                    MessageBox.Show("A session with this name already exists.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                    return;
-                }
-
-                if (this.formAudioPrecision8 != null)
-                {
-                    string jsonData = this.formAudioPrecision8.GetCurrentFormData();
-
-                    try
-                    {
-                        var tempObject = JsonConvert.DeserializeObject(jsonData); // Test deserialize
-                    }
-                    catch (JsonReaderException ex)
-                    {
-                        // Handle or log error
-                        AppendLog(logTextBox, "Invalid JSON data: " + ex.Message);
-                        return;
-                    }
-
-                    var sessionData = new
-                    {
-                        Title = sessionTitle,
-                        Data = jsonData
-                    };
-
-                    string sessionDataJson = JsonConvert.SerializeObject(sessionData);
-                    string encryptedData = EncryptString(systemKey, sessionDataJson, logTextBox);
-
-                    if (encryptedData.StartsWith("Error in EncryptString"))
-                    {
-                        AppendLog(logTextBox, encryptedData);
-                        return;
-                    }
-
-                    // Create new session instance here
-                    ProjectSession newSession = new ProjectSession
-                    {
-                        Title = sessionTitle,
-                        Data = encryptedData
-                    };
-
-                    // Add the new session to the sessions list
-                    sessions.Add(newSession);
-
-                    // Save the session
-                    SaveSessionToFile(newSession, systemKey, true); // Save encrypted
-                    SaveSessionToFile(newSession, systemKey, false, jsonData); // Save unencrypted
-
-                    // Update sessions list box in the UI
-                    sessionsListBox.Items.Add(newSession.Title); // Add this line
-
-                    CreatedSession = newSession;
-                    AppendLog(logTextBox, $"Session '{sessionTitle}' created successfully.");
-                }
-                else
-                {
-                    MessageBox.Show("FormAudioPrecision8 instance is not available.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                }
+                MessageBox.Show("A session with this name already exists.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                return;
             }
+
+            if (formAudioPrecision8 == null)
+            {
+                MessageBox.Show("FormAudioPrecision8 instance is not available.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                return;
+            }
+
+            if (systemKey == null)
+            {
+                MessageBox.Show("Encryption key (systemKey) is NULL. Cannot create session.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog("❌ ERROR: systemKey is NULL. Cannot create session.");
+                return;
+            }
+
+            string jsonData = formAudioPrecision8.GetCurrentFormData();
+            var sessionData = new { Title = sessionTitle, Data = jsonData };
+            string sessionDataJson = JsonConvert.SerializeObject(sessionData);
+            string encryptedData = Cryptography.EncryptString(systemKey, sessionDataJson);
+
+            if (string.IsNullOrEmpty(encryptedData))
+            {
+                LogManager.AppendLog("❌ ERROR: Encryption failed.");
+                return;
+            }
+
+            ProjectSession newSession = new ProjectSession
+            {
+                Title = sessionTitle,
+                Data = encryptedData
+            };
+
+            sessions.Add(newSession);
+
+            SaveSessionToFile(newSession, systemKey, true);
+            SaveSessionToFile(newSession, systemKey, false, jsonData);
+
+            CreatedSession = newSession;
+            LogManager.AppendLog($"✅ Session '{sessionTitle}' created successfully.");
+
+            // Refresh session list in the UI
+            LoadSessions();
         }
         private string GetAbbreviatedData(string data)
         {
@@ -500,11 +639,11 @@ namespace LAPxv8
             {
                 string dataToSave = encrypted ? session.Data : data ?? JsonConvert.SerializeObject(new { session.Title, session.Data });
                 File.WriteAllText(filePath, dataToSave);
-                AppendLog(logTextBox, $"[SaveSessionToFile] {(encrypted ? "Encrypted" : "Unencrypted")} session '{session.Title}' saved.");
+                LogManager.AppendLog($"[SaveSessionToFile] {(encrypted ? "Encrypted" : "Unencrypted")} session '{session.Title}' saved.");
             }
             catch (Exception ex)
             {
-                AppendLog(logTextBox, $"Error writing session file '{sessionFileName}': {ex.Message}\n");
+                LogManager.AppendLog($"Error writing session file '{sessionFileName}': {ex.Message}\n");
             }
         }
         private string PromptForSessionName()
@@ -540,13 +679,13 @@ namespace LAPxv8
             SaveSessionsToFile(systemKey); // Save sessions after adding a new one
             LoadSessions();
 
-            AppendLog(logTextBox, $"New project-session '{sessionName}' created and saved to Lyceum directory.\n");
+            LogManager.AppendLog($"New project-session '{sessionName}' created and saved to Lyceum directory.\n");
         }
         private void SaveSessionsToFile(string encryptionKey)
         {
-            if (!IsValidBase64String(encryptionKey))
+            if (!Cryptography.IsValidBase64String(encryptionKey))
             {
-                AppendLog(logTextBox, "Encryption key is not a valid Base-64 string.\n");
+                LogManager.AppendLog($"Encryption key is not a valid Base-64 string.\n");
                 return;
             }
 
@@ -570,95 +709,142 @@ namespace LAPxv8
 
                     // Log unencrypted data
                     string abbreviatedJsonData = jsonData.Substring(0, Math.Min(jsonData.Length, 100)) + "...";
-                    AppendLog(logTextBox, $"Abbreviated unencrypted data: {abbreviatedJsonData}");
+                    LogManager.AppendLog($"Abbreviated unencrypted data: {abbreviatedJsonData}");
 
                     // Saving the unencrypted JSON file
                     File.WriteAllText(jsonFilePath, jsonData);
-                    AppendLog(logTextBox, $"Successfully saved unencrypted session file '{jsonFilePath}'.\n");
+                    LogManager.AppendLog($"Successfully saved unencrypted session file '{jsonFilePath}'.\n");
 
                     // Start encryption process after saving unencrypted data
-                    AppendLog(logTextBox, "Starting encryption process...");
-                    var encryptedData = EncryptString(encryptionKey, jsonData, logTextBox);
+                    LogManager.AppendLog("Starting encryption process...");
+                    var encryptedData = Cryptography.EncryptString(encryptionKey, jsonData);
                     if (encryptedData.StartsWith("Error in EncryptString"))
                     {
-                        AppendLog(logTextBox, encryptedData + "\n");
+                        LogManager.AppendLog(encryptedData + "\n");
                         continue;
                     }
 
                     // Log encrypted data
                     string abbreviatedEncryptedData = encryptedData.Substring(0, Math.Min(encryptedData.Length, 100)) + "...";
-                    AppendLog(logTextBox, $"Abbreviated encrypted data: {abbreviatedEncryptedData}");
+                    LogManager.AppendLog($"Abbreviated encrypted data: {abbreviatedEncryptedData}");
 
                     // Saving the encrypted data
                     File.WriteAllText(encryptedFilePath, encryptedData);
-                    AppendLog(logTextBox, $"Successfully encrypted and saved '{encryptedFilePath}'.\n");
+                    LogManager.AppendLog($"Successfully encrypted and saved '{encryptedFilePath}'.\n");
                 }
                 catch (Exception ex)
                 {
-                    AppendLog(logTextBox, $"Error writing session files '{sessionFileName}': {ex.Message}\n");
+                    LogManager.AppendLog($"Error writing session files '{sessionFileName}': {ex.Message}\n");
                 }
             }
         }
-        private void LoadSessions()
+        public void LoadSessions()
         {
-            Log("Attempting to load sessions...");
+            string directoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
+            LogManager.AppendLog($"[LoadSessions] Attempting to load sessions from: {directoryPath}");
 
-            if (string.IsNullOrEmpty(systemKey))
+            sessions.Clear(); // Reset session list
+
+            if (!Directory.Exists(directoryPath))
             {
-                Log("Encryption key is null or invalid. Aborting session load.");
+                LogManager.AppendLog("[LoadSessions] ❌ No session directory found.");
                 return;
             }
 
-            string directoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
-
-            if (Directory.Exists(directoryPath))
+            if (string.IsNullOrEmpty(systemKey))
             {
-                sessions.Clear(); // Clear existing sessions before loading new ones
+                LogManager.AppendLog("[LoadSessions] ❌ ERROR: Encryption key (systemKey) is NULL. Attempting retrieval...");
+                systemKey = Cryptography.GetOrCreateEncryptionKey();
 
-                foreach (string file in Directory.EnumerateFiles(directoryPath, "*.lyc"))
+                if (string.IsNullOrEmpty(systemKey))
                 {
-                    Log($"Loading session from file: {file}");
-
-                    try
-                    {
-                        var encryptedData = File.ReadAllText(file);
-                        Log($"Read encrypted data: {GetAbbreviatedData(encryptedData)}");
-
-                        if (!IsValidBase64String(encryptedData))
-                        {
-                            Log($"Invalid Base-64 string in file: {file}");
-                            continue;
-                        }
-
-                        var jsonData = DecryptString(systemKey, encryptedData, logTextBox);
-                        if (jsonData == null)
-                        {
-                            Log($"Failed to decrypt data for file: {file}");
-                            continue;
-                        }
-
-                        var sessionData = JsonConvert.DeserializeObject<ProjectSession>(jsonData);
-                        if (sessionData != null)
-                        {
-                            sessions.Add(sessionData);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Error reading or processing file '{file}': {ex.Message}");
-                    }
+                    LogManager.AppendLog("[LoadSessions] ❌ ERROR: Encryption key retrieval failed. Aborting session load.");
+                    return;
                 }
 
-                Log("Sessions loaded successfully.");
+                LogManager.AppendLog($"[LoadSessions] ✅ Retrieved encryption key successfully.");
+            }
+
+            List<string> loadedSessionTitles = new List<string>();
+
+            foreach (string file in Directory.EnumerateFiles(directoryPath, "*.lyc"))
+            {
+                LogManager.AppendLog($"[LoadSessions] Found file: {file}");
+
+                try
+                {
+                    string encryptedData = File.ReadAllText(file);
+                    LogManager.AppendLog($"[LoadSessions] Read Encrypted Data: Length = {encryptedData.Length}");
+
+                    if (string.IsNullOrEmpty(encryptedData))
+                    {
+                        LogManager.AppendLog($"[LoadSessions] ❌ ERROR: Encrypted data in {file} is empty.");
+                        continue;
+                    }
+
+                    // Decrypt data
+                    string decryptedData = Cryptography.DecryptString(systemKey, encryptedData);
+
+                    if (string.IsNullOrEmpty(decryptedData))
+                    {
+                        LogManager.AppendLog($"[LoadSessions] ❌ ERROR: Decryption returned NULL or empty data for file: {file}");
+                        continue;
+                    }
+                    //LogManager.AppendLog($"[LoadSessions] ✅ Full decrypted JSON for {file}:\n{decryptedData}");
+
+                    LogManager.AppendLog($"[LoadSessions] ✅ Decryption data Length: {decryptedData.Length}");
+
+                    // Deserialize session data
+                    ProjectSession sessionData = null;
+                    try
+                    {
+                        sessionData = JsonConvert.DeserializeObject<ProjectSession>(decryptedData);
+                    }
+                    catch (JsonException jsonEx)
+                    {
+                        LogManager.AppendLog($"❌ ERROR: JSON Deserialization failed for {file}: {jsonEx.Message}");
+                        continue;
+                    }
+
+                    if (sessionData == null || string.IsNullOrEmpty(sessionData.Data))
+                    {
+                        LogManager.AppendLog($"[LoadSessions] ❌ ERROR: Session data is NULL or empty after deserialization for {file}.");
+                        continue;
+                    }
+
+                    sessions.Add(sessionData);
+                    loadedSessionTitles.Add(sessionData.Title);
+                    LogManager.AppendLog($"[LoadSessions] ✅ Session '{sessionData.Title}' loaded successfully.");
+                }
+                catch (Exception ex)
+                {
+                    LogManager.AppendLog($"[LoadSessions] ❌ ERROR processing session file '{file}': {ex.Message}");
+                }
+            }
+
+            // ✅ Ensure UI updates happen after the form handle is created
+            if (this.IsHandleCreated)
+            {
+                this.Invoke((MethodInvoker)delegate
+                {
+                    sessionsListBox.Items.Clear();
+                    foreach (var title in loadedSessionTitles)
+                    {
+                        sessionsListBox.Items.Add(title);
+                    }
+                    sessionsListBox.Refresh();
+                });
+
+                LogManager.AppendLog($"[LoadSessions] ✅ UI updated: {sessionsListBox.Items.Count} sessions displayed.");
             }
             else
             {
-                Log("No Lyceum directory found. Starting with empty sessions.");
+                LogManager.AppendLog("❌ ERROR: Form handle is not created. Skipping UI update.");
             }
 
-            UpdateSessionListBox();
+            LogManager.AppendLog($"[LoadSessions] ✅ Completed loading {sessions.Count} sessions.");
         }
-
+        
         private void UpdateSessionListBox()
         {
             if (sessionsListBox.IsHandleCreated)
@@ -673,10 +859,9 @@ namespace LAPxv8
                 }));
             }
         }
-
         private void LoadSessionsFromFile(string encryptionKey)
         {
-            Log("Attempting to load sessions...");
+            LogManager.AppendLog("Attempting to load sessions...");
 
             string directoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
 
@@ -684,23 +869,23 @@ namespace LAPxv8
             {
                 foreach (string file in Directory.EnumerateFiles(directoryPath, "*.lyc"))
                 {
-                    Log($"Loading session from file: {file}");
+                    LogManager.AppendLog($"Loading session from file: {file}");
 
                     try
                     {
                         var encryptedData = File.ReadAllText(file);
-                        Log($"Read encrypted data: {GetAbbreviatedData(encryptedData)}");
+                        LogManager.AppendLog($"Read encrypted data: {GetAbbreviatedData(encryptedData)}");
 
-                        if (!IsValidBase64String(encryptedData))
+                        if (!Cryptography.IsValidBase64String(encryptedData))
                         {
-                            Log($"Invalid Base-64 string in file: {file}");
+                            LogManager.AppendLog($"Invalid Base-64 string in file: {file}");
                             continue;
                         }
 
-                        var jsonData = DecryptString(encryptionKey, encryptedData, logTextBox);
+                        var jsonData = Cryptography.DecryptString(encryptionKey, encryptedData);
                         if (jsonData == null)
                         {
-                            Log("Failed to decrypt data or invalid JSON format.");
+                            LogManager.AppendLog("Failed to decrypt data or invalid JSON format.");
                             continue;
                         }
 
@@ -714,495 +899,95 @@ namespace LAPxv8
                             }
                             else
                             {
-                                AppendLog(logTextBox, $"Failed to load session from file '{file}'. Invalid or missing title.");
+                                LogManager.AppendLog($"Failed to load session from file '{file}'. Invalid or missing title.");
                             }
                         }));
                     }
                     catch (Exception ex)
                     {
-                        Log($"Error reading or processing file '{file}': {ex.Message}");
+                        LogManager.AppendLog($"Error reading or processing file '{file}': {ex.Message}");
                     }
                 }
-                Log("Sessions loaded successfully.");
+                LogManager.AppendLog("Sessions loaded successfully.");
             }
             else
             {
-                Log("No Lyceum directory found. Starting with empty sessions.");
+                LogManager.AppendLog("No Lyceum directory found. Starting with empty sessions.");
             }
 
             this.Invoke(new MethodInvoker(() => LoadSessions())); // Refresh the list on the UI thread
         }
-        public string GetOrCreateEncryptionKey(TextBox logTextBox)
-        {
-            // Define the fixed key
-            string predefinedKey = "Lyceum2024";
 
-            // Encrypt the predefined key
-            string encryptedPredefinedKey = ConvertToSystemKeyFormat(predefinedKey);
-            AppendLog(logTextBox, $"Encrypted predefined key: {encryptedPredefinedKey}\n");
 
-            // Retrieve the raw key from the environment variable
-            string environmentKey = Environment.GetEnvironmentVariable("LYCEUM_APP_KEY", EnvironmentVariableTarget.Machine);
-            if (environmentKey == null)
-            {
-                AppendLog(logTextBox, "Environment variable 'LYCEUM_APP_KEY' is not set. Aborting key validation.");
-                return null;
-            }
 
-            // Encrypt the retrieved environment key
-            string encryptedEnvironmentKey = ConvertToSystemKeyFormat(environmentKey);
-            AppendLog(logTextBox, $"Encrypted environment key: {encryptedEnvironmentKey}\n");
-
-            // Compare the encrypted keys
-            if (encryptedPredefinedKey != encryptedEnvironmentKey)
-            {
-                AppendLog(logTextBox, "Key validation failed. Please ensure the correct key is set in the environment variable.\n");
-                return null;
-            }
-
-            AppendLog(logTextBox, "Encryption key retrieved and validated successfully.\n");
-            return encryptedPredefinedKey; // Return the encrypted version of the predefined key
-        }
-
-        private string ConvertToSystemKeyFormat(string key)
-        {
-            if (string.IsNullOrEmpty(key))
-                return null;
-
-            // Encoding the key to a byte array
-            byte[] keyBytes = Encoding.UTF8.GetBytes(key);
-
-            // Encrypt the key as a Base64 string
-            return Convert.ToBase64String(keyBytes);
-        }
-
-        private string GenerateEncryptionKey()
-        {
-            using (var rng = new RNGCryptoServiceProvider())
-            {
-                var randomBytes = new byte[32]; // For 256 bits key
-                rng.GetBytes(randomBytes);
-                return Convert.ToBase64String(randomBytes);
-            }
-        }
-        private void StoreKey(string encryptionKey, string keyLocation)
-        {
-            try
-            {
-                Environment.SetEnvironmentVariable(keyLocation, encryptionKey, EnvironmentVariableTarget.Machine);
-                AppendLog(logTextBox, $"Stored key in environment variable '{keyLocation}'.\n");
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, $"Error storing key: {ex.Message}\n");
-            }
-        }
-        private string RetrieveKey(string keyLocation)
-        {
-            try
-            {
-                string retrievedKey = Environment.GetEnvironmentVariable(keyLocation, EnvironmentVariableTarget.Machine);
-                if (string.IsNullOrEmpty(retrievedKey))
-                {
-                    AppendLog(logTextBox, $"Environment variable '{keyLocation}' is not set or empty.\n");
-                }
-                else
-                {
-                    AppendLog(logTextBox, $"Retrieved key from environment variable '{keyLocation}'.\n");
-                }
-                return retrievedKey;
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, $"Error retrieving key: {ex.Message}\n");
-                return null;
-            }
-        }
-        private bool KeyExists(string keyLocation)
-        {
-            var key = Environment.GetEnvironmentVariable(keyLocation, EnvironmentVariableTarget.User);
-            return !string.IsNullOrEmpty(key);
-        }
-        private static string EncryptString(string key, string plainText, TextBox logTextBox)
-        {
-            AppendLog(logTextBox, "[EncryptString] Encryption process started.");
-
-            byte[] keyBytes = Convert.FromBase64String(key);
-            keyBytes = ResizeKey(keyBytes, 32);
-            AppendLog(logTextBox, $"Key byte length for encryption: {keyBytes.Length * 8} bits");
-
-            if (keyBytes.Length != 16 && keyBytes.Length != 24 && keyBytes.Length != 32)
-            {
-                string error = "Error: Invalid key size.";
-                Console.WriteLine("FormSessionManager - EncryptString: " + error);
-                return error;
-            }
-
-            try
-            {
-                byte[] iv = new byte[16]; // AES block size is 128 bits
-                byte[] array;
-
-                using (Aes aes = Aes.Create())
-                {
-                    aes.Key = keyBytes;
-                    aes.IV = iv;
-
-                    ICryptoTransform encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
-
-                    using (MemoryStream memoryStream = new MemoryStream())
-                    {
-                        using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                        {
-                            using (StreamWriter streamWriter = new StreamWriter(cryptoStream))
-                            {
-                                streamWriter.Write(plainText);
-                            }
-                            array = memoryStream.ToArray();
-                        }
-                    }
-                }
-
-                string encryptedString = Convert.ToBase64String(array);
-                AppendLog(logTextBox, "Encryption successful.");
-                return encryptedString; // Moved inside try block
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, "[EncryptString] Error during encryption: " + ex.Message);
-                return "Error in EncryptString: " + ex.Message;
-            }
-        }
-        private static byte[] ResizeKey(byte[] originalKey, int sizeInBytes)
-        {
-            if (originalKey.Length == sizeInBytes)
-                return originalKey;
-
-            byte[] resizedKey = new byte[sizeInBytes];
-            System.Array.Copy(originalKey, resizedKey, Math.Min(originalKey.Length, sizeInBytes));
-            return resizedKey;
-        }
-        public static string DecryptString(string key, string cipherText, TextBox logTextBox)
-        {
-            AppendLog(logTextBox, "[DecryptString] Starting decryption process...");
-            AppendLog(logTextBox, "[DecryptString] Key: " + (key != null ? "Present" : "Null"));
-            AppendLog(logTextBox, "[DecryptString] CipherText length: " + (cipherText?.Length ?? 0));
-
-            if (key == null)
-            {
-                AppendLog(logTextBox, "[DecryptString] Key is null. Aborting decryption.");
-                return null;
-            }
-
-            // Convert key from Base64 to byte array
-            byte[] keyBytes;
-            try
-            {
-                keyBytes = Convert.FromBase64String(key);
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, "[DecryptString] Error converting key from Base64: " + ex.Message);
-                return null;
-            }
-
-            keyBytes = ResizeKey(keyBytes, 32);
-            AppendLog(logTextBox, "[DecryptString] Key byte length for decryption: " + keyBytes.Length * 8 + " bits");
-
-            if (keyBytes.Length != 16 && keyBytes.Length != 24 && keyBytes.Length != 32)
-            {
-                AppendLog(logTextBox, "[DecryptString] Error: Invalid key size.");
-                return "Error: Invalid key size.";
-            }
-
-            try
-            {
-                byte[] iv = new byte[16];
-                byte[] buffer = Convert.FromBase64String(cipherText);
-
-                using (Aes aes = Aes.Create())
-                {
-                    aes.Key = keyBytes;
-                    aes.IV = iv;
-                    ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
-
-                    using (MemoryStream memoryStream = new MemoryStream(buffer))
-                    {
-                        using (CryptoStream cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read))
-                        {
-                            using (StreamReader streamReader = new StreamReader(cryptoStream))
-                            {
-                                string result = streamReader.ReadToEnd();
-                                AppendLog(logTextBox, "[DecryptString] Decryption successful.");
-                                return result;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, "[DecryptString] Error during decryption: " + ex.Message);
-                return null;
-            }
-        }
-        private bool IsValidBase64String(string base64)
-        {
-            // Log the key for debugging purposes. Remove this in production.
-            //AppendLog($"Key being validated: {base64}\n");
-
-            if (string.IsNullOrEmpty(base64) || base64.Length % 4 != 0
-               || base64.Contains(" ") || base64.Contains("\t") || base64.Contains("\r") || base64.Contains("\n"))
-                return false;
-
-            try
-            {
-                Convert.FromBase64String(base64);
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-        private string ExecuteCommand(string command)
-        {
-            ProcessStartInfo processStartInfo = new ProcessStartInfo("cmd", "/c " + command)
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            string output;
-            using (Process process = Process.Start(processStartInfo))
-            {
-                using (StreamReader reader = process.StandardOutput)
-                {
-                    output = reader.ReadToEnd();
-                }
-            }
-
-            return output;
-        }
-        private async Task<bool> CheckStaffStatus()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    AppendLog(logTextBox, "Access token is null or empty. Cannot proceed with verification.");
-                    return false;
-                }
-
-                using (var client = new HttpClient())
-                {
-                    client.DefaultRequestHeaders.Clear();
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-                    AppendLog(logTextBox, $"Authorization header set with access token for verification check.");
-
-                    // Send GET request to the user verification endpoint
-                    var response = await client.GetAsync("https://api.thelyceum.io/api/account/me/");
-                    string content = await response.Content.ReadAsStringAsync();
-                    AppendLog(logTextBox, $"Verification Response Status: {response.StatusCode}");
-                    AppendLog(logTextBox, $"Verification Response Content: {content}");
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var json = JsonConvert.DeserializeObject<Dictionary<string, object>>(content);
-                        if (json != null && json.ContainsKey("is_verified"))
-                        {
-                            bool isVerified = json["is_verified"].ToString().ToLower() == "true";
-                            AppendLog(logTextBox, $"User verified status: {isVerified}");
-                            return isVerified;
-                        }
-                        else
-                        {
-                            AppendLog(logTextBox, "Response JSON does not contain 'is_verified' field.");
-                        }
-                    }
-                    else
-                    {
-                        AppendLog(logTextBox, "Failed to retrieve verification status. Non-success status code received.");
-                        AppendLog(logTextBox, content);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, $"Exception occurred while checking Lyceum staff status: {ex.Message}");
-            }
-
-            AppendLog(logTextBox, "User is not verified or failed to retrieve verification status.");
-            return false;
-        }
-        private async Task<bool> IsAuthorizedForDecryption()
-        {
-            // Only check the verification status without requiring a key.
-            bool hasStaffStatus = await CheckStaffStatus();
-            return hasStaffStatus;
-        }
-        public async Task<string> DecryptDataAsync(string encryptedData)
-        {
-            bool isAuthorized = await IsAuthorizedForDecryption();
-            if (!isAuthorized)
-            {
-                AppendLog(logTextBox, "Authorization failed. Cannot decrypt data.");
-                return null;
-            }
-
-            return DecryptString(systemKey, encryptedData, logTextBox);
-        }
-        private async void FormSessionManager_Load(object sender, EventArgs e)
-        {
-            AppendLog(logTextBox, "Loading FormSessionManager...\n");
-
-            try
-            {
-                // Retrieve and validate the encryption key
-                systemKey = GetOrCreateEncryptionKey(logTextBox);
-                if (string.IsNullOrEmpty(systemKey))
-                {
-                    AppendLog(logTextBox, "Encryption key could not be retrieved or validated.");
-                    DisableFormControls();
-                    return;
-                }
-
-                AppendLog(logTextBox, "Encryption key retrieved and validated successfully.\n");
-
-                // Perform authorization check for decryption
-                bool isAuthorized = await IsAuthorizedForDecryption();
-                if (!isAuthorized)
-                {
-                    MessageBox.Show("User not authorized for decryption. Contact Lyceum support.", "Authorization Failed", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
-                    DisableFormControls();
-                    return;
-                }
-
-                AppendLog(logTextBox, "Authorization successful. Proceeding to load sessions...\n");
-
-                // Load sessions now that the key is ready
-                await Task.Run(() => LoadSessions());
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logTextBox, $"Error during form load: {ex.Message}\n");
-                MessageBox.Show($"An error occurred during form load: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-            }
-        }
-
-        private void DisableFormControls()
-        {
-            // Disable all controls except the log text box to allow viewing logs
-            if (createNewButton != null)
-                createNewButton.Enabled = false;
-
-            if (sessionsListBox != null)
-                sessionsListBox.Enabled = false;
-
-            if (resultsTreeView != null)
-                resultsTreeView.Enabled = false;
-
-            if (detailsTextBox != null)
-                detailsTextBox.Enabled = false;
-
-            if (globalPropertyComboBox != null)
-                globalPropertyComboBox.Enabled = false;
-
-            if (resultDetailComboBox != null)
-                resultDetailComboBox.Enabled = false;
-
-            // Leave logTextBox enabled to display logs even if authorization fails
-            if (logTextBox != null)
-            {
-                logTextBox.Enabled = true;
-                AppendLog(logTextBox, "Logs enabled for viewing.");
-            }
-
-            AppendLog(logTextBox, "Form controls have been disabled except for logs.");
-        }
-        private bool IsValidKeySize(string base64Key)
-        {
-            var keyBytes = Convert.FromBase64String(base64Key);
-            return keyBytes.Length == 16 || keyBytes.Length == 24 || keyBytes.Length == 32; // Valid sizes for AES: 128, 192, or 256 bits
-        }
-        private string GenerateSystemSpecificKey()
-        {
-            string processorId = ExecuteCommand("wmic cpu get ProcessorId").Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)[1].Trim();
-            string motherboardSerial = ExecuteCommand("wmic baseboard get SerialNumber").Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)[1].Trim();
-            string biosSerial = ExecuteCommand("wmic bios get SerialNumber").Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)[1].Trim();
-
-            string rawSystemKey = processorId + "-" + motherboardSerial + "-" + biosSerial + "-000001";
-            //AppendLog($"Raw system-specific key: {rawSystemKey}\n");
-
-            byte[] keyBytes = Encoding.UTF8.GetBytes(rawSystemKey);
-            string encodedSystemKey = Convert.ToBase64String(keyBytes);
-            //AppendLog($"Encoded system-specific key: {encodedSystemKey}\n");
-
-            return encodedSystemKey;
-
-        }
         // Remove this outdated method that references detailsListBox
         private void SessionsListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (sessionsListBox.SelectedIndex != -1)
+            if (sessionsListBox.SelectedIndex == -1)
+                return;
+
+            string selectedTitle = sessionsListBox.SelectedItem?.ToString();
+            if (string.IsNullOrEmpty(selectedTitle))
             {
-                string selectedTitle = sessionsListBox.SelectedItem.ToString();
-                var selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
+                LogManager.AppendLog("❌ ERROR: Selected session title is null or empty.");
+                return;
+            }
 
-                if (selectedSession != null)
+            var selectedSession = sessions.FirstOrDefault(s => s.Title == selectedTitle);
+            if (selectedSession == null)
+            {
+                LogManager.AppendLog($"❌ ERROR: No session found with title '{selectedTitle}'.");
+                return;
+            }
+
+            try
+            {
+                LogManager.AppendLog($"[DEBUG] Selected session: {selectedTitle}");
+
+                if (string.IsNullOrEmpty(selectedSession.Data))
                 {
-                    try
+                    LogManager.AppendLog($"❌ ERROR: Session '{selectedTitle}' has no data.");
+                    return;
+                }
+
+                var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
+                if (sessionData == null)
+                {
+                    LogManager.AppendLog($"❌ ERROR: JSON deserialization failed for session '{selectedTitle}'.");
+                    return;
+                }
+
+                // ✅ Store GlobalProperties in memory
+                currentGlobalProperties = sessionData.GlobalProperties ?? new Dictionary<string, string>();
+
+                if (currentGlobalProperties.Count > 0)
+                {
+                    LogManager.AppendLog($"✅ Extracted {currentGlobalProperties.Count} Global Properties.");
+                    foreach (var kvp in currentGlobalProperties)
                     {
-                        // Deserialize the session data to access its details
-                        var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
-
-                        if (sessionData != null)
-                        {
-                            PopulateResultsTreeView(sessionData.CheckedData);
-
-                            // Clear existing items in ComboBoxes
-                            globalPropertyComboBox.Items.Clear();
-                            resultDetailComboBox.Items.Clear();
-
-                            // Populate globalPropertyComboBox with global properties names
-                            foreach (var prop in sessionData.GlobalProperties.Keys)
-                            {
-                                globalPropertyComboBox.Items.Add(prop);
-                            }
-
-                            // Populate resultDetailComboBox with ResultData variable names
-                            if (sessionData.CheckedData.Any() && sessionData.CheckedData.First().Measurements.Any())
-                            {
-                                var firstResult = sessionData.CheckedData.First().Measurements.First().Results.FirstOrDefault();
-                                if (firstResult != null)
-                                {
-                                    foreach (var prop in firstResult.GetType().GetProperties())
-                                    {
-                                        resultDetailComboBox.Items.Add(prop.Name);
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            AppendLog(logTextBox, "Deserialized session data is null.");
-                        }
-                    }
-                    catch (JsonReaderException ex)
-                    {
-                        AppendLog(logTextBox, $"Error deserializing session data: {ex.Message}");
-                        MessageBox.Show("The selected session contains invalid or corrupted data. Try restarting the session manager.", "Deserialization Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendLog(logTextBox, $"Unexpected error: {ex.Message}");
-                        MessageBox.Show("An unexpected error occurred while processing the session.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                        LogManager.AppendLog($"🔹 {kvp.Key}: {kvp.Value}");
                     }
                 }
+                else
+                {
+                    LogManager.AppendLog($"⚠️ No Global Properties found for '{selectedTitle}'.");
+                }
+
+                DisplayGlobalProperties(currentGlobalProperties);
+
+                // ✅ Populate results tree after storing global properties
+                PopulateResultsTreeView(sessionData.CheckedData);
+                LogManager.AppendLog($"✅ Successfully populated ResultsTreeView.");
+            }
+            catch (JsonReaderException ex)
+            {
+                LogManager.AppendLog($"❌ ERROR: JSON deserialization failed: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR: Unexpected exception in session selection: {ex.Message}");
             }
         }
-
         private void PopulateResultsList(List<CheckedData> checkedData)
         {
             detailsTextBox.Clear();
@@ -1218,100 +1003,149 @@ namespace LAPxv8
                 }
             }
         }
-        private void DisplayGlobalProperties(Dictionary<string, string> globalProperties)
+        private Dictionary<string, string> ExtractGlobalPropertiesFromSession(string filePath)
         {
-            detailsTextBox.AppendText($"Global Properties:{Environment.NewLine}");
-            foreach (var prop in globalProperties)
+            try
             {
-                detailsTextBox.AppendText($"{prop.Key}: {prop.Value}{Environment.NewLine}");
+                LogManager.AppendLog($"[ExtractGlobalPropertiesFromSession] Reading session file: {filePath}");
+
+                if (!File.Exists(filePath))
+                {
+                    LogManager.AppendLog($"❌ ERROR: File not found - {filePath}");
+                    return null;
+                }
+
+                string encryptedData = File.ReadAllText(filePath);
+                if (string.IsNullOrEmpty(encryptedData))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Encrypted data in {filePath} is empty.");
+                    return null;
+                }
+
+                string decryptedText = Cryptography.DecryptString(systemKey, encryptedData);
+                if (string.IsNullOrEmpty(decryptedText))
+                {
+                    LogManager.AppendLog($"❌ ERROR: Decryption failed for file: {filePath}");
+                    return null;
+                }
+
+                // Extract only the Global Properties section from JSON
+                var parsedData = JsonConvert.DeserializeObject<SessionData>(decryptedText);
+                if (parsedData?.GlobalProperties == null)
+                {
+                    LogManager.AppendLog("⚠️ No Global Properties found in session.");
+                    return new Dictionary<string, string>(); // Return empty dictionary
+                }
+
+                LogManager.AppendLog($"✅ Extracted {parsedData.GlobalProperties.Count} global properties from session.");
+                return parsedData.GlobalProperties;
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR extracting global properties: {ex.Message}");
+                return null;
             }
         }
+
+        private void DisplayGlobalProperties(Dictionary<string, string> globalProperties)
+        {
+            detailsTextBox.Clear();
+            if (globalProperties == null || globalProperties.Count == 0)
+            {
+                LogManager.AppendLog("⚠️ No Global Properties available to display.");
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("🔹 **Global Properties**");
+
+            foreach (var kvp in globalProperties)
+            {
+                sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+            }
+
+            detailsTextBox.Text = sb.ToString();
+            LogManager.AppendLog("✅ Global Properties displayed in UI.");
+        }
+
         private void DetailsListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (detailsTextBox.SelectedText.Length != 0)
             {
-                // Clear existing details before displaying new ones
                 detailsTextBox.Clear();
 
-                // Display global properties if available
                 var selectedSession = sessions.FirstOrDefault(s => s.Title == sessionsListBox.SelectedItem.ToString());
                 if (selectedSession != null)
                 {
-                    AppendLog(logTextBox, "Displaying global properties.");
-                    var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
-                    DisplayGlobalProperties(sessionData.GlobalProperties);
+                    LogManager.AppendLog($"Displaying global properties.");
+
+                    // ✅ Always reload global properties when a result is selected
+                    if (currentGlobalProperties.Count > 0)
+                    {
+                        LogManager.AppendLog($"✅ Re-displaying {currentGlobalProperties.Count} global properties.");
+                        DisplayGlobalProperties(currentGlobalProperties);
+                    }
+                    else
+                    {
+                        LogManager.AppendLog($"⚠️ No global properties found in stored memory.");
+                    }
                 }
                 else
                 {
-                    AppendLog(logTextBox, "Selected session is null or global properties are missing.");
+                    LogManager.AppendLog($"Selected session is null or global properties are missing.");
                 }
 
                 string selectedItem = detailsTextBox.SelectedText.ToString();
                 var resultData = FindResultData(selectedItem);
 
-                // Now display result details if available
                 if (resultData != null)
                 {
+                    detailsTextBox.Clear();
                     DisplayResultDetails(resultData);
-                    LogResultData(resultData); // Ensure this method is called
+                    LogResultData(resultData);
                     DisplayGraph(resultData);
                 }
                 else
                 {
-                    AppendLog(logTextBox, "No result data found for the selected item.");
+                    LogManager.AppendLog($"No result data found for the selected item.");
                 }
             }
         }
+
         private void LogResultData(ResultData resultData)
         {
-            AppendLog(logTextBox, $"Logging data for result: {resultData.Name}");
-            AppendLog(logTextBox, $"ResultValueType: {resultData.ResultValueType}");
-            AppendLog(logTextBox, $"HasXYValues: {resultData.HasXYValues}");
-            AppendLog(logTextBox, $"HasMeterValues: {resultData.HasMeterValues}");
+            LogManager.AppendLog($"Logging data for result: {resultData.Name}");
+            LogManager.AppendLog($"ResultValueType: {resultData.ResultValueType}");
+            LogManager.AppendLog($"HasXYValues: {resultData.HasXYValues}");
+            LogManager.AppendLog($"HasMeterValues: {resultData.HasMeterValues}");
 
             if (resultData.ResultValueType == "XY Values")
             {
-                AppendLog(logTextBox, "XY Values result type detected.");
-                //AppendLog(logTextBox, $"X Values: {string.Join(", ", resultData.XValues)}");
+                LogManager.AppendLog($"XY Values result type detected.");
+                //LogManager.AppendLog($$"X Values: {string.Join(", ", resultData.XValues)}");
 
             }
             else if (resultData.ResultValueType == "Meter Values")
             {
-                AppendLog(logTextBox, "Meter Values result type detected.");
-                //AppendLog(logTextBox, $"Meter Values: {string.Join(", ", resultData.MeterValues)}");
+                LogManager.AppendLog($"Meter Values result type detected.");
+                //LogManager.AppendLog($$"Meter Values: {string.Join(", ", resultData.MeterValues)}");
             }
             else
             {
-                AppendLog(logTextBox, "No values found or unknown result type.");
+                LogManager.AppendLog($"No values found or unknown result type.");
             }
         }
-        // Make sure the AppendLog method is as follows:
-        public static void AppendLog(TextBox logTextBox, string message)
-        {
-            if (logTextBox == null)
-            {
-                Console.WriteLine("LogTextBox is null: " + message);
-                return;
-            }
-
-            if (logTextBox.InvokeRequired)
-            {
-                logTextBox.Invoke(new Action(() => logTextBox.AppendText(message + Environment.NewLine)));
-            }
-            else
-            {
-                logTextBox.AppendText(message + Environment.NewLine);
-            }
-        }
+        // Make sure the LogManager.AppendLog method is as follows:
+        
         private void Log(string message)
         {
             if (logTextBox.InvokeRequired)
             {
-                logTextBox.Invoke(new Action(() => logTextBox.AppendText(message + Environment.NewLine)));
+                logTextBox.Invoke(new Action(() => LogManager.AppendLog(message + Environment.NewLine)));
             }
             else
             {
-                logTextBox.AppendText(message + Environment.NewLine);
+                LogManager.AppendLog(message + Environment.NewLine);
             }
             Console.WriteLine(message); // Also log to the console for debug purposes
         }
@@ -1320,7 +1154,7 @@ namespace LAPxv8
             string[] parts = path.Split('\\');
             if (parts.Length < 3)
             {
-                AppendLog(logTextBox, "Path does not have enough parts to match a result.");
+                LogManager.AppendLog($"Path does not have enough parts to match a result.");
                 return null;
             }
 
@@ -1341,7 +1175,7 @@ namespace LAPxv8
                         {
                             if (result.Name == resultName)
                             {
-                                AppendLog(logTextBox, $"Found matching result for {path}.");
+                                LogManager.AppendLog($"Found matching result for {path}.");
                                 return result;
                             }
                         }
@@ -1349,11 +1183,12 @@ namespace LAPxv8
                 }
             }
 
-            AppendLog(logTextBox, $"No matching result found for {path}.");
+            LogManager.AppendLog($"No matching result found for {path}.");
             return null;
         }
         private void DisplayResultDetails(ResultData result)
         {
+
             detailsTextBox.AppendText(Environment.NewLine);
             // Displaying result details dynamically
             detailsTextBox.AppendText($"Result Details{Environment.NewLine}");
@@ -1380,7 +1215,7 @@ namespace LAPxv8
         }
         private void DisplayGraph(ResultData result)
         {
-            AppendLog(logTextBox, "Attempting to display graph.");
+            LogManager.AppendLog($"Attempting to display graph.");
             graphPanel.Controls.Clear();
             Chart chart = new Chart { Dock = DockStyle.Fill };
 
@@ -1391,15 +1226,15 @@ namespace LAPxv8
             {
                 BackColor = Color.FromArgb(45, 45, 45), // Dark mode background color for the chart area
                 AxisX =
-        {
-            LabelStyle = { ForeColor = Color.White }, // Set axis labels to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid lines to a gray color
-        },
+                {
+                    LabelStyle = { ForeColor = Color.White }, // Set axis labels to white
+                    MajorGrid = { LineColor = Color.Gray }, // Set grid lines to a gray color
+                },
                 AxisY =
-        {
-            LabelStyle = { ForeColor = Color.White }, // Set axis labels to white
-            MajorGrid = { LineColor = Color.Gray }, // Set grid lines to a gray color
-        }
+                {
+                    LabelStyle = { ForeColor = Color.White }, // Set axis labels to white
+                    MajorGrid = { LineColor = Color.Gray }, // Set grid lines to a gray color
+                }
             };
 
             chart.ChartAreas.Add(chartArea);
@@ -1407,20 +1242,20 @@ namespace LAPxv8
             switch (result.ResultValueType)
             {
                 case "XY Values":
-                    AppendLog(logTextBox, "Preparing to display XY graph.");
+                    LogManager.AppendLog($"Preparing to display XY graph.");
                     DisplayXYGraph(chart, result);
                     break;
                 case "Meter Values":
-                    AppendLog(logTextBox, "Preparing to display Meter graph.");
+                    LogManager.AppendLog($"Preparing to display Meter graph.");
                     DisplayMeterGraph(chart, result);
                     break;
                 default:
-                    AppendLog(logTextBox, $"Unknown ResultValueType: {result.ResultValueType}");
+                    LogManager.AppendLog($"Unknown ResultValueType: {result.ResultValueType}");
                     break;
             }
 
             graphPanel.Controls.Add(chart);
-            AppendLog(logTextBox, "Graph display updated.");
+            LogManager.AppendLog($"Graph display updated.");
         }
         private void DisplayXYGraph(Chart chart, ResultData result)
         {
@@ -1450,12 +1285,12 @@ namespace LAPxv8
                 chart.Series.Add(series);
             }
             chart.Legends.Add(new Legend("Legend") { Docking = Docking.Top });
-            AppendLog(logTextBox, "XY graph displayed.");
+            LogManager.AppendLog($"XY graph displayed.");
         }
         private void DisplayMeterGraph(Chart chart, ResultData result)
         {
             string deviceId = GetDeviceId();
-            AppendLog(logTextBox, "Displaying Meter graph.");
+            LogManager.AppendLog($"Displaying Meter graph.");
             Series series = new Series
             {
                 Name = $"{deviceId}",
@@ -1474,7 +1309,7 @@ namespace LAPxv8
 
             chart.Series.Add(series);
             chart.Legends.Add(new Legend("Legend") { Docking = Docking.Top });
-            AppendLog(logTextBox, "Meter graph displayed.");
+            LogManager.AppendLog($"Meter graph displayed.");
         }
         private string GetDeviceId()
         {
@@ -1566,21 +1401,21 @@ namespace LAPxv8
             var chart = graphPanel.Controls.OfType<Chart>().FirstOrDefault();
             if (chart == null)
             {
-                AppendLog(logTextBox, "No chart found for updating legends.");
+                LogManager.AppendLog($"No chart found for updating legends.");
                 return;
             }
 
             var selectedSession = sessions.FirstOrDefault(s => s.Title == sessionsListBox.SelectedItem.ToString());
             if (selectedSession == null)
             {
-                AppendLog(logTextBox, "Selected session not found during legend update.");
+                LogManager.AppendLog($"Selected session not found during legend update.");
                 return;
             }
 
             var sessionData = JsonConvert.DeserializeObject<SessionData>(selectedSession.Data);
             if (sessionData == null)
             {
-                AppendLog(logTextBox, "Session data is invalid for legend update.");
+                LogManager.AppendLog($"Session data is invalid for legend update.");
                 return;
             }
 
@@ -1588,7 +1423,7 @@ namespace LAPxv8
             string globalPropertyValue = GetPropertyValue(sessionData.GlobalProperties, selectedGlobalPropertyName);
 
             string selectedResultDetailName = resultDetailComboBox.SelectedItem?.ToString();
-            AppendLog(logTextBox, $"Updating legends with Global Property: {selectedGlobalPropertyName} = {globalPropertyValue}, and Result Detail: {selectedResultDetailName}");
+            LogManager.AppendLog($"Updating legends with Global Property: {selectedGlobalPropertyName} = {globalPropertyValue}, and Result Detail: {selectedResultDetailName}");
 
             foreach (var series in chart.Series)
             {
@@ -1602,7 +1437,7 @@ namespace LAPxv8
                 if (!string.IsNullOrEmpty(selectedResultDetailName))
                 {
                     var resultDetailValue = FindResultDetailValue(sessionData, series.Name, selectedResultDetailName);
-                    AppendLog(logTextBox, $"Series: {series.Name}, Detail: {selectedResultDetailName}, Value: {resultDetailValue}");
+                    LogManager.AppendLog($"Series: {series.Name}, Detail: {selectedResultDetailName}, Value: {resultDetailValue}");
                     if (!string.IsNullOrEmpty(resultDetailValue))
                     {
                         legendText += $"-{resultDetailValue}";

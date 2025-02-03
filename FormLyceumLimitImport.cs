@@ -12,10 +12,11 @@ using System.IO;
 using ClosedXML.Excel;
 using System.Net;
 using AudioPrecision.API;
+using System.Diagnostics;
 
 namespace LAPxv8
 {
-    public partial class FormLyceumLimitImport : BaseForm
+    public partial class FormLyceumLimitImport : Form
     {
         private APx500 APx = new APx500();
         private readonly string accessToken;
@@ -46,8 +47,24 @@ namespace LAPxv8
             this.refreshToken = refreshToken;
 
             InitializeComponent(); // Call designer-generated code
-            InitializeHttpClient();
-            FetchAndDisplayLimits();
+            InitializeLogTextBox(); // Initialize logTextBox
+            InitializeHttpClient(); // Set up the HTTP client
+            FetchAndDisplayLimits(); // Fetch the limits
+        }
+
+        private void InitializeLogTextBox()
+        {
+            logTextBox = new TextBox
+            {
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                ReadOnly = true,
+                Dock = DockStyle.Bottom, // Position it as per your design
+                Height = 150,
+                BackColor = Color.FromArgb(45, 45, 45), // Optional: match your dark theme
+                ForeColor = Color.White // Optional: match your dark theme
+            };
+            this.Controls.Add(logTextBox); // Add to the form
         }
 
         private void ApplyToSpecificChannelCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -86,8 +103,16 @@ namespace LAPxv8
 
         private void Log(string message)
         {
-            logTextBox.AppendText($"{DateTime.Now}: {message}\r\n");
+            if (logTextBox != null)
+            {
+                logTextBox.AppendText($"{DateTime.Now}: {message}\r\n");
+            }
+            else
+            {
+                Debug.WriteLine($"{DateTime.Now}: {message}"); // Fallback to console/logging
+            }
         }
+
         private void SearchButton_Click(object sender, EventArgs e)
         {
             string searchTerm = searchTextBox.Text.ToLower();

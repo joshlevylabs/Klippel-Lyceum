@@ -50,6 +50,24 @@ namespace LAPxv8
             logoPictureBox.Image = Image.FromFile(Path.Combine(Application.StartupPath, "Resources", "logo.png")); // Ensure the logo.png file exists in the specified path
             Controls.Add(logoPictureBox);
 
+            // APx500 Compatibility Label
+            Label compatibilityLabel = new Label
+            {
+                Text = "Compatible with APx500 v8.0",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                AutoSize = true,
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent // Ensures the label background doesn't cover the image
+            };
+
+            // Position the label on top of the image
+            compatibilityLabel.Location = new Point(105, 120 + verticalSpacing);
+
+            Controls.Add(compatibilityLabel);
+            compatibilityLabel.BringToFront(); // Bring the label to the front so it appears above the image
+
+
             // Username Label
             Label usernameLabel = new Label
             {
@@ -324,10 +342,14 @@ namespace LAPxv8
         }
         private void LogMessage(string message)
         {
+            if (this.IsDisposed || apiResponseTextBox.IsDisposed) return; // Prevent writing to a disposed control
+
             if (apiResponseTextBox.InvokeRequired)
             {
-                apiResponseTextBox.Invoke(new Action(() => {
-                    apiResponseTextBox.AppendText($"{DateTime.Now} - {message}{Environment.NewLine}");
+                apiResponseTextBox.Invoke(new Action(() =>
+                {
+                    if (!apiResponseTextBox.IsDisposed) // Check again before updating
+                        apiResponseTextBox.AppendText($"{DateTime.Now} - {message}{Environment.NewLine}");
                 }));
             }
             else
@@ -338,17 +360,22 @@ namespace LAPxv8
 
         private void LogError(string message)
         {
+            if (this.IsDisposed || apiResponseTextBox.IsDisposed) return; // Prevent writing to a disposed control
+
             if (apiResponseTextBox.InvokeRequired)
             {
-                apiResponseTextBox.Invoke(new Action(() => {
-                    apiResponseTextBox.AppendText($"{DateTime.Now} - {message}{Environment.NewLine}");
+                apiResponseTextBox.Invoke(new Action(() =>
+                {
+                    if (!apiResponseTextBox.IsDisposed) // Check again before updating
+                        apiResponseTextBox.AppendText($"{DateTime.Now} - ERROR: {message}{Environment.NewLine}");
                 }));
             }
             else
             {
-                apiResponseTextBox.AppendText($"{DateTime.Now} - {message}{Environment.NewLine}");
+                apiResponseTextBox.AppendText($"{DateTime.Now} - ERROR: {message}{Environment.NewLine}");
             }
         }
+
 
         public string GetAccessToken()
         {
