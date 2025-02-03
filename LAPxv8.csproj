@@ -9,7 +9,8 @@
     <Deterministic>true</Deterministic>
     <LangVersion>8.0</LangVersion>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems> <!-- Disable default compile items -->
-    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems> <!-- Disable default embedded resources -->
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <ApplicationIcon>bin\Debug\net472\Resources\LAPx.ico</ApplicationIcon> <!-- Disable default embedded resources -->
   </PropertyGroup>
 
   <!-- NuGet Package References -->
@@ -96,6 +97,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <Content Include="bin\Debug\net472\Resources\LAPx.ico" />
     <Content Include="Resources\AudioPrecisionLogo.png" />
     <Content Include="Resources\logoonly.ico" />
     <Content Include="Resources\logoonly.png" />

@@ -156,18 +156,73 @@ namespace LAPxv8
         {
             using (BaseForm prompt = new BaseForm(false)) // No menu strip
             {
-                prompt.Width = 500;
-                prompt.Height = 150;
-                prompt.Text = "Enter Project Name";
+                prompt.Width = 600;
+                prompt.Height = 250;
+                prompt.BackColor = Color.FromArgb(30, 30, 30);
+                prompt.ForeColor = Color.White;
+                prompt.StartPosition = FormStartPosition.CenterScreen;
+                prompt.Font = new Font("Segoe UI", 10);
+                prompt.Text = "Enter Project Name"; // Window title
 
-                Label textLabel = new Label() { Left = 50, Top = 20, Text = "Project Name:" };
-                TextBox textBox = new TextBox() { Left = 50, Top = 50, Width = 400 };
-                Button confirmation = new Button() { Text = "Ok", Left = 350, Width = 100, Top = 80, DialogResult = DialogResult.OK };
+                int centerX = prompt.Width / 2;
+                int paddingTop = 30; // Spacing adjustment
+
+                // Title Label
+                Label titleLabel = new Label()
+                {
+                    Left = centerX - 100,
+                    Top = paddingTop,
+                    Width = 200,
+                    Text = "Enter Project Name",
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+
+                // Project Name Label
+                Label textLabel = new Label()
+                {
+                    Left = centerX - 200,
+                    Top = paddingTop + 50,
+                    Width = 400,
+                    Text = "Project Name:",
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+
+                // Project Name Input Box
+                TextBox textBox = new TextBox()
+                {
+                    Left = centerX - 200,
+                    Top = paddingTop + 80,
+                    Width = 400,
+                    BackColor = Color.FromArgb(50, 50, 50),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10)
+                };
+
+                // Confirmation Button (Centered & Larger)
+                Button confirmation = new Button()
+                {
+                    Text = "OK",
+                    Left = centerX - 50,
+                    Width = 100,
+                    Top = paddingTop + 130,
+                    Height = 40, // Increased height for better UX
+                    DialogResult = DialogResult.OK,
+                    BackColor = Color.FromArgb(70, 70, 70),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
+                };
+
                 confirmation.Click += (sender, e) => { prompt.Close(); };
 
+                // Add Controls
+                prompt.Controls.Add(titleLabel);
+                prompt.Controls.Add(textLabel);
                 prompt.Controls.Add(textBox);
                 prompt.Controls.Add(confirmation);
-                prompt.Controls.Add(textLabel);
                 prompt.AcceptButton = confirmation;
 
                 return prompt.ShowDialog() == DialogResult.OK ? textBox.Text : null;
@@ -308,44 +363,109 @@ namespace LAPxv8
 
             using (BaseForm prompt = new BaseForm(false)) // No menu strip
             {
-                prompt.Width = 500;
-                prompt.Height = 400;
+                prompt.Width = 600;
+                prompt.Height = 520;
+                prompt.BackColor = Color.FromArgb(30, 30, 30);
+                prompt.ForeColor = Color.White;
+                prompt.StartPosition = FormStartPosition.CenterScreen;
+                prompt.Font = new Font("Segoe UI", 10);
                 prompt.Text = "Select Group";
 
-                var label = new Label { Left = 50, Top = 20, Width = 400, Text = "Select a group:" };
-                var searchBox = new TextBox { Left = 50, Top = 50, Width = 400 };
-                var comboBox = new ComboBox
+                int paddingTop = 40; // Move elements downward
+
+                // Title Labels
+                Label searchTitle = new Label()
                 {
                     Left = 50,
-                    Top = 80,
-                    Width = 400,
-                    DropDownStyle = ComboBoxStyle.DropDownList
+                    Top = paddingTop + 10, // Adjusted downward
+                    Width = 500,
+                    Text = "Search for a Group:",
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
                 };
-                comboBox.Items.AddRange(groups.Select(g => g["name"].ToString()).ToArray());
 
-                var confirmation = new Button
+                Label listTitle = new Label()
                 {
-                    Text = "Ok",
-                    Left = 350,
-                    Width = 100,
-                    Top = 110,
-                    DialogResult = DialogResult.OK
+                    Left = 50,
+                    Top = paddingTop + 80, // Adjusted downward
+                    Width = 500,
+                    Text = "Matching Groups:",
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
                 };
+
+                // Search Box
+                TextBox searchBox = new TextBox()
+                {
+                    Left = 50,
+                    Top = paddingTop + 40, // Adjusted downward
+                    Width = 500,
+                    BackColor = Color.FromArgb(50, 50, 50),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10)
+                };
+
+                // Dropdown List (ListBox)
+                ListBox listBox = new ListBox()
+                {
+                    Left = 50,
+                    Top = paddingTop + 110, // Adjusted downward
+                    Width = 500,
+                    Height = 200,
+                    BackColor = Color.FromArgb(50, 50, 50),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10)
+                };
+
+                // Populate the ListBox initially
+                var groupNames = groups.Select(g => g["name"].ToString()).ToList();
+                listBox.Items.AddRange(groupNames.ToArray());
+
+                // Search Functionality
+                searchBox.TextChanged += (sender, e) =>
+                {
+                    string searchText = searchBox.Text.ToLower();
+                    listBox.Items.Clear();
+                    var filteredGroups = groupNames.Where(g => g.ToLower().Contains(searchText)).ToArray();
+                    listBox.Items.AddRange(filteredGroups);
+                };
+
+                // Confirmation Button (Larger Height for Better UX)
+                Button confirmation = new Button()
+                {
+                    Text = "OK",
+                    Left = 450,
+                    Width = 100,
+                    Top = paddingTop + 330, // Adjusted downward
+                    Height = 40,  // Increased height
+                    DialogResult = DialogResult.OK,
+                    BackColor = Color.FromArgb(70, 70, 70),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
+                };
+
                 confirmation.Click += (sender, e) =>
                 {
-                    var selectedGroup = groups.FirstOrDefault(g => g["name"].ToString() == comboBox.SelectedItem.ToString()) as JObject;
-                    tcs.SetResult(selectedGroup);
-                    prompt.Close();
+                    if (listBox.SelectedItem != null)
+                    {
+                        string selectedGroupName = listBox.SelectedItem.ToString();
+                        var selectedGroup = groups.FirstOrDefault(g => g["name"].ToString() == selectedGroupName);
+                        tcs.SetResult(selectedGroup as JObject);
+                        prompt.Close();
+                    }
                 };
 
-                prompt.Controls.Add(comboBox);
-                prompt.Controls.Add(confirmation);
-                prompt.Controls.Add(label);
+                // Add Controls
+                prompt.Controls.Add(searchTitle);
                 prompt.Controls.Add(searchBox);
-                prompt.AcceptButton = confirmation;
+                prompt.Controls.Add(listTitle);
+                prompt.Controls.Add(listBox);
+                prompt.Controls.Add(confirmation);
 
+                prompt.AcceptButton = confirmation;
                 prompt.ShowDialog();
             }
+
             return await tcs.Task;
         }
 
@@ -372,11 +492,16 @@ namespace LAPxv8
             {
                 prompt.Width = 600;
                 prompt.Height = 400;
+
+                prompt.BackColor = Color.FromArgb(30, 30, 30);
+                prompt.ForeColor = Color.White;
+                this.StartPosition = FormStartPosition.CenterScreen; // Center the window
+
                 prompt.Text = "Select Group";
 
-                Label textLabel = new Label() { Left = 50, Top = 20, Text = "Search and select a group:" };
-                TextBox searchBox = new TextBox() { Left = 50, Top = 50, Width = 500 };
-                ListBox listBox = new ListBox() { Left = 50, Top = 80, Width = 500, Height = 200 };
+                Label textLabel = new Label() { Left = 50, Top = 50, Text = "Search and select a group:" };
+                TextBox searchBox = new TextBox() { Left = 50, Top = 80, Width = 500 };
+                ListBox listBox = new ListBox() { Left = 50, Top = 110, Width = 500, Height = 200 };
 
                 var filteredGroups = groups.Select(g => g["name"].ToString()).ToList();
                 listBox.Items.AddRange(filteredGroups.ToArray());
@@ -388,7 +513,7 @@ namespace LAPxv8
                     listBox.Items.AddRange(filteredGroups.Where(g => g.ToLower().Contains(searchText)).ToArray());
                 };
 
-                Button confirmation = new Button() { Text = "Ok", Left = 450, Width = 100, Top = 300, DialogResult = DialogResult.OK };
+                Button confirmation = new Button() { Text = "Ok", Left = 450, Width = 100, Top = 330, DialogResult = DialogResult.OK };
                 confirmation.Click += (sender, e) => { prompt.Close(); };
 
                 prompt.Controls.Add(searchBox);
@@ -442,38 +567,9 @@ namespace LAPxv8
         }
         private string PromptForDataType()
         {
-            using (BaseForm prompt = new BaseForm())
-            {
-                prompt.Width = 300;
-                prompt.Height = 150;
-                prompt.Text = "Select Data Type";
-
-                Button measurementButton = new Button()
-                {
-                    Text = "Measurement",
-                    Left = 50,
-                    Width = 100,
-                    Top = 50,
-                    DialogResult = DialogResult.Yes
-                };
-                Button limitButton = new Button()
-                {
-                    Text = "Limit",
-                    Left = 150,
-                    Width = 100,
-                    Top = 50,
-                    DialogResult = DialogResult.No
-                };
-
-                prompt.Controls.Add(measurementButton);
-                prompt.Controls.Add(limitButton);
-                prompt.AcceptButton = measurementButton;
-                prompt.CancelButton = limitButton;
-
-                var result = prompt.ShowDialog();
-                return result == DialogResult.Yes ? "Measurement" : "Limit";
-            }
+            return "Measurement"; // Automatically select "Measurement" without user input
         }
+
 
         private JArray ProcessCheckedDataCore(JArray checkedData, string dataType, string deviceLabel)
         {
@@ -889,92 +985,87 @@ namespace LAPxv8
         {
             var tcs = new TaskCompletionSource<string>();
 
-            var prompt = new BaseForm
+            using (BaseForm prompt = new BaseForm(false)) // Ensure menu strip is disabled
             {
-                Width = 500,
-                Height = 400,
-                Text = "Select Matching Unit"
-            };
+                prompt.Width = 500;
+                prompt.Height = 450; // Increased height for better spacing
+                prompt.BackColor = Color.FromArgb(30, 30, 30);
+                prompt.ForeColor = Color.White;
+                prompt.StartPosition = FormStartPosition.CenterScreen;
+                prompt.Font = new Font("Segoe UI", 10); // Apply consistent font
+                prompt.Text = "Select Matching Unit";
 
-            var label = new Label
-            {
-                Left = 50,
-                Top = 20,
-                Width = 400,
-                Text = $"Select a matching unit for: {unmatchedUnit}"
-            };
-
-            var detailsLabel = new Label
-            {
-                Left = 50,
-                Top = 50,
-                Width = 400,
-                Text = "Details of the unmatched unit: " + GetUnitDetails(unmatchedUnit)
-            };
-
-            var searchBox = new TextBox
-            {
-                Left = 50,
-                Top = 80,
-                Width = 400
-            };
-
-            var comboBox = new ComboBox
-            {
-                Left = 50,
-                Top = 110,
-                Width = 400,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            comboBox.Items.AddRange(availableUnits.ToArray());
-
-            searchBox.TextChanged += (sender, e) =>
-            {
-                var filteredUnits = availableUnits.Where(u => u.IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
-                comboBox.Items.Clear();
-                comboBox.Items.AddRange(filteredUnits);
-            };
-
-            // Placeholder effect for the search box
-            searchBox.GotFocus += (sender, e) =>
-            {
-                if (searchBox.Text == "Search for a unit...")
+                // Title Label
+                Label titleLabel = new Label
                 {
-                    searchBox.Text = "";
-                    searchBox.ForeColor = Color.Black;
-                }
-            };
+                    Left = 50,
+                    Top = 50, // Adjusted to be lower and centered
+                    Width = 400,
+                    Text = $"Select a matching unit for: {unmatchedUnit}",
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold) // Consistent font
+                };
 
-            searchBox.LostFocus += (sender, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(searchBox.Text))
+                // Search Box
+                TextBox searchBox = new TextBox
                 {
-                    searchBox.Text = "Search for a unit...";
-                    searchBox.ForeColor = Color.Gray;
-                }
-            };
+                    Left = 50,
+                    Top = 80, // Lowered to avoid overlapping
+                    Width = 400,
+                    BackColor = Color.FromArgb(50, 50, 50),
+                    ForeColor = Color.White
+                };
 
-            searchBox.Text = "Search for a unit...";
-            searchBox.ForeColor = Color.Gray;
+                // Dropdown List
+                ComboBox comboBox = new ComboBox
+                {
+                    Left = 50,
+                    Top = 120, // Lowered for better spacing
+                    Width = 400,
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    BackColor = Color.FromArgb(50, 50, 50),
+                    ForeColor = Color.White
+                };
+                comboBox.Items.AddRange(availableUnits.ToArray());
 
-            var confirmation = new Button
-            {
-                Text = "Ok",
-                Left = 350,
-                Width = 100,
-                Top = 150,
-                DialogResult = DialogResult.OK
-            };
-            confirmation.Click += (sender, e) => { tcs.SetResult(comboBox.SelectedItem?.ToString()); prompt.Close(); };
+                // Adjust the search box to filter results dynamically
+                searchBox.TextChanged += (sender, e) =>
+                {
+                    string searchText = searchBox.Text.ToLower();
+                    var filteredUnits = availableUnits.Where(u => u.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
+                    comboBox.Items.Clear();
+                    comboBox.Items.AddRange(filteredUnits);
+                };
 
-            prompt.Controls.Add(comboBox);
-            prompt.Controls.Add(confirmation);
-            prompt.Controls.Add(label);
-            prompt.Controls.Add(detailsLabel);
-            prompt.Controls.Add(searchBox);
-            prompt.AcceptButton = confirmation;
+                // Confirmation Button (Larger, properly spaced)
+                Button confirmation = new Button
+                {
+                    Text = "OK",
+                    Left = 350,
+                    Width = 100,
+                    Height = 40, // Increased height for better visibility
+                    Top = 180, // Lowered to avoid overlap
+                    DialogResult = DialogResult.OK,
+                    BackColor = Color.FromArgb(70, 70, 70),
+                    ForeColor = Color.White
+                };
 
-            prompt.ShowDialog();
+                confirmation.Click += (sender, e) =>
+                {
+                    tcs.SetResult(comboBox.SelectedItem?.ToString());
+                    prompt.Close();
+                };
+
+                // Add Controls
+                prompt.Controls.Add(titleLabel);
+                prompt.Controls.Add(searchBox);
+                prompt.Controls.Add(comboBox);
+                prompt.Controls.Add(confirmation);
+                prompt.AcceptButton = confirmation;
+
+                prompt.ShowDialog();
+            }
+
             return tcs.Task;
         }
 
