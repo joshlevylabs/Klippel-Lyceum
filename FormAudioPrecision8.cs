@@ -1633,9 +1633,20 @@ namespace LAPxv8
             {
                 LogManager.AppendLog("📤 Upload to Lyceum option selected.");
 
+                // Declare sessionTitle before usage
+                string sessionTitle = "";
+
                 // Step 1: Run AutoSessionCreator to generate session data
                 AutoSessionCreator autoSession = new AutoSessionCreator(this, accessToken, refreshToken, checkedData, ParsePropertiesToDictionary(propertiesTextBox.Text));
                 autoSession.Run();
+
+                sessionTitle = autoSession.SessionTitle; // Assign retrieved session title
+
+                if (string.IsNullOrWhiteSpace(sessionTitle))
+                {
+                    LogManager.AppendLog("❌ ERROR: Session title retrieval failed.");
+                    return;
+                }
 
                 LogManager.AppendLog("✅ AutoSessionCreator executed. Waiting for session file to be created...");
 
@@ -1761,7 +1772,8 @@ namespace LAPxv8
                 }
 
                 // Step 9: Pass parsed JSON to FormLyceumDataUpload
-                string sessionTitle = Path.GetFileNameWithoutExtension(sessionFilePath);
+                sessionTitle = Path.GetFileNameWithoutExtension(sessionFilePath); // Assign extracted session title
+
                 // Ensure we're passing the correct data format
                 JObject correctFormatJson;
                 if (jsonData.ContainsKey("Data") && jsonData["Data"].Type == JTokenType.Object)

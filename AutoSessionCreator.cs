@@ -17,6 +17,8 @@ namespace LAPxv8
         private Dictionary<string, string> globalProperties;
         private string encryptionKey;
         private string sessionFolder;
+        public string SessionTitle { get; private set; } // Store session title
+
 
         public AutoSessionCreator(FormAudioPrecision8 apxForm, string accessToken, string refreshToken, List<SignalPathData> checkedData, Dictionary<string, string> globalProperties)
         {
@@ -61,6 +63,7 @@ namespace LAPxv8
                 var sessionData = new { Title = title, GlobalProperties = globalProperties, CheckedData = checkedData };
                 SaveSession(sessionData, title);
 
+                this.SessionTitle = title;
                 LogManager.AppendLog($"✅ Session '{title}' created successfully.");
             }
             catch (Exception ex)
@@ -69,10 +72,7 @@ namespace LAPxv8
             }
         }
 
-        /// <summary>
-        /// ✅ Prompts the user to enter a session title.
-        /// </summary>
-        /// <returns>Session title entered by user, or empty string if canceled.</returns>
+        
         private string PromptForSessionTitle()
         {
             using (Form prompt = new Form())

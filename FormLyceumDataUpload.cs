@@ -158,10 +158,9 @@ namespace LAPxv8
                 LogManager.AppendLog($"🕒 AWS Session Token: (hidden for security)");
 
                 // 🛠 Continue Processing After AWS Credentials Are Verified
-                string projectName = PromptForProjectName();
-                if (!string.IsNullOrWhiteSpace(projectName))
+                if (!string.IsNullOrWhiteSpace(sessionTitle))
                 {
-                    ModifyJsonDataWithProjectName(projectName);
+                    ModifyJsonDataWithProjectName();
                     ModifyJsonData();
                     await UpdateDescriptorsWithUUIDs();
                     await ShowGroupSelectionForm();
@@ -192,93 +191,16 @@ namespace LAPxv8
             }
         }
 
-        private string PromptForProjectName()
-        {
-            using (BaseForm prompt = new BaseForm(false)) // No menu strip
-            {
-                prompt.Width = 600;
-                prompt.Height = 250;
-                prompt.BackColor = Color.FromArgb(30, 30, 30);
-                prompt.ForeColor = Color.White;
-                prompt.StartPosition = FormStartPosition.CenterScreen;
-                prompt.Font = new Font("Segoe UI", 10);
-                prompt.Text = "Enter Project Name"; // Window title
-
-                int centerX = prompt.Width / 2;
-                int paddingTop = 30; // Spacing adjustment
-
-                // Title Label
-                Label titleLabel = new Label()
-                {
-                    Left = centerX - 100,
-                    Top = paddingTop,
-                    Width = 200,
-                    Text = "Enter Project Name",
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-
-                // Project Name Label
-                Label textLabel = new Label()
-                {
-                    Left = centerX - 200,
-                    Top = paddingTop + 50,
-                    Width = 400,
-                    Text = "Project Name:",
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-
-                // Project Name Input Box
-                TextBox textBox = new TextBox()
-                {
-                    Left = centerX - 200,
-                    Top = paddingTop + 80,
-                    Width = 400,
-                    BackColor = Color.FromArgb(50, 50, 50),
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 10)
-                };
-
-                // Confirmation Button (Centered & Larger)
-                Button confirmation = new Button()
-                {
-                    Text = "OK",
-                    Left = centerX - 50,
-                    Width = 100,
-                    Top = paddingTop + 130,
-                    Height = 40, // Increased height for better UX
-                    DialogResult = DialogResult.OK,
-                    BackColor = Color.FromArgb(70, 70, 70),
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
-                };
-
-                confirmation.Click += (sender, e) => { prompt.Close(); };
-
-                // Add Controls
-                prompt.Controls.Add(titleLabel);
-                prompt.Controls.Add(textLabel);
-                prompt.Controls.Add(textBox);
-                prompt.Controls.Add(confirmation);
-                prompt.AcceptButton = confirmation;
-
-                return prompt.ShowDialog() == DialogResult.OK ? textBox.Text : null;
-            }
-        }
-
-        private void ModifyJsonDataWithProjectName(string projectName)
+        private void ModifyJsonDataWithProjectName()
         {
             try
             {
                 var jsonData = JObject.Parse(sessionData);
-                jsonData["ProjectName"] = projectName;
-                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
+                jsonData["ProjectName"] = sessionTitle; // Use sessionTitle directly
 
+                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(GetJsonFilePath(), sessionData);
-                LogManager.AppendLog($"Updated data saved to {GetJsonFilePath()} with Project Name: {projectName}");
+                LogManager.AppendLog($"Updated data saved to {GetJsonFilePath()} with Project Name: {sessionTitle}");
             }
             catch (Exception ex)
             {
@@ -290,7 +212,6 @@ namespace LAPxv8
         {
             try
             {
-
                 if (string.IsNullOrWhiteSpace(sessionData))
                 {
                     LogManager.AppendLog("❌ ERROR: sessionData is NULL or EMPTY in ModifyJsonData.");
@@ -311,10 +232,48 @@ namespace LAPxv8
                 }
 
                 // 🔹 Ensure `GlobalProperties` exists
-                if (jsonData["GlobalProperties"] == null)
+                if (!jsonData.ContainsKey("GlobalProperties") || jsonData["GlobalProperties"] == null)
                 {
                     LogManager.AppendLog("⚠ WARNING: 'GlobalProperties' key is missing. Creating an empty object.");
                     jsonData["GlobalProperties"] = new JObject();
+                }
+
+                // 🔹 Ensure `descriptor` exists
+                if (!jsonData.ContainsKey("descriptor") || jsonData["descriptor"] == null)
+                {
+                    LogManager.AppendLog("⚠ WARNING: 'descriptor' key is missing. Creating an empty array.");
+                    jsonData["descriptor"] = new JArray();
+                }
+
+                JArray descriptorArray = (JArray)jsonData["descriptor"];
+
+                // Convert `GlobalProperties` to `descriptor` format
+                if (jsonData["GlobalProperties"] is JObject globalProperties && globalProperties.HasValues)
+                {
+                    foreach (var property in globalProperties)
+                    {
+                        string key = property.Key;
+                        string value = property.Value?.ToString() ?? "";
+
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            JObject descriptorObject = new JObject
+                    {
+                        { "label", key },
+                        { "value", value }
+                    };
+
+                            descriptorArray.Add(descriptorObject);
+                        }
+                    }
+
+                    // Remove `GlobalProperties` after conversion
+                    jsonData.Remove("GlobalProperties");
+                    LogManager.AppendLog("✅ Converted 'GlobalProperties' to 'descriptor' and removed 'GlobalProperties'.");
+                }
+                else
+                {
+                    LogManager.AppendLog("⚠ WARNING: 'GlobalProperties' section is empty or not found, skipping conversion.");
                 }
 
                 // ✅ Modify JSON safely
@@ -327,14 +286,12 @@ namespace LAPxv8
 
                 string updatedJson = File.ReadAllText(GetJsonFilePath());
                 LogManager.AppendLog($"🔍 First 300 characters after modification: {updatedJson.Substring(0, Math.Min(300, updatedJson.Length))}");
-
             }
             catch (Exception ex)
             {
                 LogManager.AppendLog($"❌ ERROR in ModifyJsonData: {ex.Message}");
             }
         }
-
 
         private async Task UpdateDescriptorsWithUUIDs()
         {
