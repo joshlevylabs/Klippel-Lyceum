@@ -19,6 +19,8 @@ using static LAPxv8.FormSessionManager;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
+using ScottPlot;
+using Newtonsoft.Json.Linq;
 
 
 namespace LAPxv8
@@ -26,7 +28,7 @@ namespace LAPxv8
     public partial class FormAudioPrecision8 : BaseForm
     {
         private APx500 APx = new APx500();
-        private TreeView resultsTreeView; // Declare TreeView at the class level
+        private TreeView resultsTreeView;
         private TextBox detailsTextBox;
         private List<SignalPathData> checkedData = new List<SignalPathData>();
         private Panel graphPanel;
@@ -86,6 +88,10 @@ namespace LAPxv8
             ToolStripMenuItem createSessionMenuItem = new ToolStripMenuItem("Create Session");
             createSessionMenuItem.Click += CreateSessionMenuItem_Click;
             downloadMenu.DropDownItems.Add(createSessionMenuItem);
+
+            ToolStripMenuItem uploadToLyceumMenuItem = new ToolStripMenuItem("Upload to Lyceum");
+            uploadToLyceumMenuItem.Click += UploadToLyceumMenuItem_Click;
+            downloadMenu.DropDownItems.Add(uploadToLyceumMenuItem);
 
             ToolStripMenuItem downloadDataMenuItem = new ToolStripMenuItem("Download Data");
             downloadDataMenuItem.Click += DownloadJsonButton_Click;
@@ -1619,6 +1625,175 @@ namespace LAPxv8
             {
                 MessageBox.Show($"Error initiating session creation: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 LogManager.AppendLog($"Error in CreateSessionMenuItem_Click: {ex.Message}");
+            }
+        }
+        private async void UploadToLyceumMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                LogManager.AppendLog("📤 Upload to Lyceum option selected.");
+
+                // Step 1: Run AutoSessionCreator to generate session data
+                AutoSessionCreator autoSession = new AutoSessionCreator(this, accessToken, refreshToken, checkedData, ParsePropertiesToDictionary(propertiesTextBox.Text));
+                autoSession.Run();
+
+                LogManager.AppendLog("✅ AutoSessionCreator executed. Waiting for session file to be created...");
+
+                // Step 2: Wait for the session file to be created
+                string sessionFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
+                string sessionFilePath = null;
+
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    await Task.Delay(1000);
+                    sessionFilePath = Directory.GetFiles(sessionFolder, "*.lyc")
+                                               .OrderByDescending(File.GetCreationTime)
+                                               .FirstOrDefault();
+
+                    if (!string.IsNullOrEmpty(sessionFilePath)) break;
+                    LogManager.AppendLog($"🔄 Retry {attempt + 1}/5: Waiting for session file...");
+                }
+
+                if (string.IsNullOrEmpty(sessionFilePath))
+                {
+                    LogManager.AppendLog("❌ ERROR: Session creation failed. No session file found.");
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Session file found: {sessionFilePath}");
+
+                // Step 3: Read encrypted session data
+                string encryptedSessionData = File.ReadAllText(sessionFilePath);
+                if (string.IsNullOrWhiteSpace(encryptedSessionData))
+                {
+                    LogManager.AppendLog("❌ ERROR: Read session data is empty.");
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Raw session data read successfully. Length: {encryptedSessionData.Length} bytes");
+                LogManager.AppendLog($"🔍 First 300 characters of encrypted data: {encryptedSessionData.Substring(0, Math.Min(300, encryptedSessionData.Length))}");
+
+                // Step 4: Retrieve encryption key
+                string encryptionKey = Cryptography.GetOrCreateEncryptionKey();
+                if (string.IsNullOrEmpty(encryptionKey))
+                {
+                    LogManager.AppendLog("❌ ERROR: Encryption key retrieval failed.");
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Encryption key retrieved successfully. Key Length: {encryptionKey.Length}");
+
+                // Step 5: Decrypt session data
+                string decryptedSessionData = Cryptography.DecryptString(encryptionKey, encryptedSessionData);
+                if (string.IsNullOrWhiteSpace(decryptedSessionData))
+                {
+                    LogManager.AppendLog("❌ ERROR: Decryption failed. Session data is null or empty.");
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Decryption successful. Length: {decryptedSessionData.Length} bytes");
+                LogManager.AppendLog($"🔍 First 300 characters of decrypted JSON data: {decryptedSessionData.Substring(0, Math.Min(300, decryptedSessionData.Length))}");
+
+                // Step 6: Parse JSON and validate structure
+                JObject jsonData;
+                try
+                {
+                    jsonData = JObject.Parse(decryptedSessionData);
+                }
+                catch (Exception ex)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Failed to parse decrypted JSON: {ex.Message}");
+                    return;
+                }
+
+                // Step 7: Ensure 'Data' is properly parsed
+                if (jsonData.ContainsKey("Data") && jsonData["Data"].Type == JTokenType.String)
+                {
+                    try
+                    {
+                        jsonData["Data"] = JObject.Parse(jsonData["Data"].ToString());
+                        LogManager.AppendLog("✅ Parsed 'Data' field into a valid JSON object.");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.AppendLog($"❌ ERROR: Failed to parse 'Data' field: {ex.Message}");
+                        return;
+                    }
+                }
+
+                // Step 8: Log descriptors, global properties, and results
+                JToken globalProperties = jsonData["GlobalProperties"];
+                JToken descriptors = jsonData["Descriptors"];
+                LogManager.AppendLog($"📌 Global Properties: {globalProperties?.ToString(Newtonsoft.Json.Formatting.None) ?? "None"}");
+                LogManager.AppendLog($"📌 Descriptors: {descriptors?.ToString(Newtonsoft.Json.Formatting.None) ?? "None"}");
+
+                // Check and log results
+                if (jsonData["Data"] is JObject dataObject)
+                {
+                    JToken checkedData = dataObject["CheckedData"];
+                    if (checkedData == null || !checkedData.HasValues)
+                    {
+                        LogManager.AppendLog("❌ ERROR: 'CheckedData' is missing or empty. No results to process.");
+                        return;
+                    }
+
+                    foreach (JObject path in checkedData)
+                    {
+                        string pathName = path["Name"]?.ToString() ?? "Unknown Path";
+                        JToken measurements = path["Measurements"];
+                        if (measurements is JArray measurementArray)
+                        {
+                            foreach (JObject measurement in measurementArray)
+                            {
+                                string measurementName = measurement["Name"]?.ToString() ?? "Unknown Measurement";
+                                foreach (JObject result in measurement["Results"])
+                                {
+                                    string resultName = result["Name"]?.ToString() ?? "Unknown Result";
+                                    string xUnit = result["XUnit"]?.ToString() ?? "None";
+                                    string yUnit = result["YUnit"]?.ToString() ?? "None";
+                                    string meterUnit = result["MeterUnit"]?.ToString() ?? "None";
+
+                                    LogManager.AppendLog($"📊 Path: {pathName}, Measurement: {measurementName}, Result: {resultName}, XUnit: {xUnit}, YUnit: {yUnit}, MeterUnit: {meterUnit}");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Step 9: Pass parsed JSON to FormLyceumDataUpload
+                string sessionTitle = Path.GetFileNameWithoutExtension(sessionFilePath);
+                // Ensure we're passing the correct data format
+                JObject correctFormatJson;
+                if (jsonData.ContainsKey("Data") && jsonData["Data"].Type == JTokenType.Object)
+                {
+                    correctFormatJson = (JObject)jsonData["Data"]; // Remove unnecessary "Data" key
+                }
+                else
+                {
+                    correctFormatJson = jsonData; // Use as is if already correct
+                }
+
+                // Pass corrected JSON to FormLyceumDataUpload
+                FormLyceumDataUpload dataUploadForm = new FormLyceumDataUpload(accessToken, refreshToken, sessionTitle, correctFormatJson.ToString());
+                dataUploadForm.ShowDialog();
+
+                // Step 10: Verify temp.json after processing
+                string tempJsonFilePath = Path.Combine(sessionFolder, "temp.json");
+                if (File.Exists(tempJsonFilePath))
+                {
+                    string tempJsonAfterProcessing = File.ReadAllText(tempJsonFilePath);
+                    LogManager.AppendLog($"✅ temp.json after FormLyceumDataUpload processing. First 300 characters: {tempJsonAfterProcessing.Substring(0, Math.Min(300, tempJsonAfterProcessing.Length))}");
+                }
+                else
+                {
+                    LogManager.AppendLog("❌ ERROR: temp.json does not exist after FormLyceumDataUpload processing.");
+                }
+
+                LogManager.AppendLog("✅ Data upload to Lyceum completed.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR in UploadToLyceumMenuItem_Click: {ex.Message}");
             }
         }
 

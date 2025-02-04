@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System.Windows.Forms;
 using static LAPxv8.FormAudioPrecision8;
 using System.Linq;
+using Newtonsoft.Json.Linq;
 
 namespace LAPxv8
 {
@@ -111,7 +112,24 @@ namespace LAPxv8
                 Data = JsonConvert.SerializeObject(sessionData, Formatting.Indented)  // **Wrap session data inside "Data"**
             };
 
-            string jsonData = JsonConvert.SerializeObject(sessionObject, Formatting.Indented);
+            JObject jsonDataObject = JObject.Parse(JsonConvert.SerializeObject(sessionObject, Formatting.Indented));
+
+            // Ensure `GlobalProperties` exists
+            if (!jsonDataObject.ContainsKey("GlobalProperties") || jsonDataObject["GlobalProperties"] == null)
+            {
+                jsonDataObject["GlobalProperties"] = new JObject();
+                LogManager.AppendLog("⚠ WARNING: 'GlobalProperties' was missing. Added empty object.");
+            }
+
+            // ✅ Ensure `Descriptors` exists
+            if (!jsonDataObject.ContainsKey("Descriptors") || jsonDataObject["Descriptors"] == null)
+            {
+                jsonDataObject["Descriptors"] = new JArray();
+                LogManager.AppendLog("⚠ WARNING: 'Descriptors' was missing. Added empty array.");
+            }
+
+            string jsonData = jsonDataObject.ToString();
+
             if (string.IsNullOrWhiteSpace(jsonData) || jsonData.Length < 20) // Prevent saving empty data
             {
                 LogManager.AppendLog("❌ ERROR: JSON serialization resulted in empty or invalid data. Aborting session save.");

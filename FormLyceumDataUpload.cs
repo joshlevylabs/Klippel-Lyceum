@@ -30,6 +30,8 @@ namespace LAPxv8
 
         public FormLyceumDataUpload(string accessToken, string refreshToken, string sessionTitle, string sessionData)
         {
+            LogManager.AppendLog($"📂 FormLyceumDataUpload initialized. Session Title: {sessionTitle}");
+
             //InitializeComponents(); // Ensure components are initialized first
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
@@ -45,7 +47,7 @@ namespace LAPxv8
             if (IsDisposed)
                 return;
 
-            LogManager.AppendLog("Initializing upload form asynchronously.");
+            LogManager.AppendLog("🔄 Initializing upload form asynchronously...");
             await Task.Run(() => SaveDataToFile());
             await FetchAWSCredentials();
         }
@@ -69,11 +71,15 @@ namespace LAPxv8
                     Directory.CreateDirectory(Path.GetDirectoryName(filePath));
                 }
                 File.WriteAllText(filePath, sessionData);
-                LogManager.AppendLog($"Data saved to {filePath}");
+                LogManager.AppendLog($"✅ Data saved to {filePath}");
+
+                // Log first 300 characters of saved data for debugging
+                string fileContents = File.ReadAllText(filePath);
+                LogManager.AppendLog($"🔍 First 300 characters of saved temp.json: {fileContents.Substring(0, Math.Min(300, fileContents.Length))}");
             }
             catch (Exception ex)
             {
-                LogManager.AppendLog($"Failed to save data: {ex.Message}");
+                LogManager.AppendLog($"❌ ERROR: Failed to save data: {ex.Message}");
             }
 
             LogManager.AppendLog($"Access Token: {accessToken}");
@@ -89,66 +95,100 @@ namespace LAPxv8
         {
             try
             {
+                LogManager.AppendLog("📡 Fetching AWS credentials...");
+
                 string url = "https://api.thelyceum.io/api/account/get_aws_token/";
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
                 var response = await client.GetAsync(url);
                 string responseContent = await response.Content.ReadAsStringAsync();
 
                 if (IsDisposed)
                     return;
 
-                LogManager.AppendLog($"HTTP Response Status: {response.StatusCode}");
-                LogManager.AppendLog($"HTTP Response Headers: {response.Headers}");
+                LogManager.AppendLog($"🔍 HTTP Response Status: {response.StatusCode}");
+                LogManager.AppendLog($"📜 HTTP Response Headers: {response.Headers}");
 
-                if (response.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    var awsTokenData = JObject.Parse(responseContent);
-                    LogManager.AppendLog("Successfully fetched AWS credentials.");
-                    LogManager.AppendLog($"AWS Access Key ID: {awsTokenData["Credentials"]["AccessKeyId"]}");
-                    LogManager.AppendLog($"AWS Secret Access Key: {awsTokenData["Credentials"]["SecretAccessKey"]}");
-                    LogManager.AppendLog($"AWS Session Token: {awsTokenData["Credentials"]["SessionToken"]}");
+                    LogManager.AppendLog($"❌ ERROR: Failed to fetch AWS credentials. Response: {responseContent}");
+                    return;
+                }
 
-                    string projectName = PromptForProjectName();
-                    if (!string.IsNullOrWhiteSpace(projectName))
-                    {
-                        ModifyJsonDataWithProjectName(projectName);
-                        ModifyJsonData();
-                        await UpdateDescriptorsWithUUIDs();
+                LogManager.AppendLog("✅ Successfully received AWS credentials response.");
 
-                        await ShowGroupSelectionForm();
+                // 🛑 Log Full AWS Response for Debugging
+                LogManager.AppendLog($"🔍 Full AWS Response: {responseContent}");
 
-                        await ProcessCheckedData();  // Process checked data right after appending group details
+                JObject awsTokenData;
+                try
+                {
+                    awsTokenData = JObject.Parse(responseContent);
+                }
+                catch (Exception jsonEx)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Failed to parse AWS response as JSON: {jsonEx.Message}");
+                    return;
+                }
 
-                        RemoveCheckedData();
+                // 🔹 Verify required fields exist in JSON response
+                if (!awsTokenData.ContainsKey("Credentials") ||
+                    awsTokenData["Credentials"]["AccessKeyId"] == null ||
+                    awsTokenData["Credentials"]["SecretAccessKey"] == null ||
+                    awsTokenData["Credentials"]["SessionToken"] == null)
+                {
+                    LogManager.AppendLog("❌ ERROR: AWS response is missing required credential fields.");
+                    return;
+                }
 
-                        string filePath = GetJsonFilePath();
-                        string bucketName = "lyceum-prod";
-                        string objectName = $"native-app-uploads/{sessionTitle}.json";
-                        string accessKeyId = awsTokenData["Credentials"]["AccessKeyId"].ToString();
-                        string secretAccessKey = awsTokenData["Credentials"]["SecretAccessKey"].ToString();
-                        string sessionToken = awsTokenData["Credentials"]["SessionToken"].ToString();
+                string accessKeyId = awsTokenData["Credentials"]["AccessKeyId"].ToString();
+                string secretAccessKey = awsTokenData["Credentials"]["SecretAccessKey"].ToString();
+                string sessionToken = awsTokenData["Credentials"]["SessionToken"].ToString();
 
-                        await FetchAndStoreUnitDetails();  // This method should fetch the details and call StoreUnitDetails
-                        await HandleUnmatchedUnits(); // Handle unmatched units
-                        ReplaceUnitsInJson();
+                // 🔹 Check if credentials are empty or null
+                if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey) || string.IsNullOrEmpty(sessionToken))
+                {
+                    LogManager.AppendLog("❌ ERROR: AWS credentials contain null or empty values.");
+                    return;
+                }
 
-                        await UploadFileToS3(filePath, bucketName, accessKeyId, secretAccessKey, sessionToken, "us-west-1");
-                    }
-                    else
-                    {
-                        LogManager.AppendLog("No project name provided, cancelling operation.");
-                    }
+                LogManager.AppendLog($"✅ AWS Credentials Retrieved Successfully.");
+                LogManager.AppendLog($"🔑 AWS Access Key ID: {accessKeyId}");
+                LogManager.AppendLog($"🔒 AWS Secret Access Key: (hidden for security)");
+                LogManager.AppendLog($"🕒 AWS Session Token: (hidden for security)");
+
+                // 🛠 Continue Processing After AWS Credentials Are Verified
+                string projectName = PromptForProjectName();
+                if (!string.IsNullOrWhiteSpace(projectName))
+                {
+                    ModifyJsonDataWithProjectName(projectName);
+                    ModifyJsonData();
+                    await UpdateDescriptorsWithUUIDs();
+                    await ShowGroupSelectionForm();
+                    await ProcessCheckedData();
+                    RemoveCheckedData();
+
+                    string filePath = GetJsonFilePath();
+                    string bucketName = "lyceum-prod";
+                    string objectName = $"native-app-uploads/{sessionTitle}.json";
+
+                    await FetchAndStoreUnitDetails();
+                    await HandleUnmatchedUnits();
+                    ReplaceUnitsInJson();
+
+                    await UploadFileToS3(filePath, bucketName, accessKeyId, secretAccessKey, sessionToken, "us-west-1");
                 }
                 else
                 {
-                    LogManager.AppendLog("Failed to fetch AWS credentials.");
-                    LogManager.AppendLog($"Response Content: {responseContent}");
+                    LogManager.AppendLog("❌ No project name provided. Cancelling operation.");
                 }
             }
             catch (Exception ex)
             {
                 if (!IsDisposed)
-                    LogManager.AppendLog($"Error fetching AWS credentials: {ex.Message}");
+                {
+                    LogManager.AppendLog($"❌ ERROR in FetchAWSCredentials: {ex.Message}");
+                }
             }
         }
 
@@ -250,71 +290,155 @@ namespace LAPxv8
         {
             try
             {
-                var jsonData = JObject.Parse(sessionData);
-                var properties = jsonData["GlobalProperties"].ToObject<JObject>();
-                jsonData.Remove("GlobalProperties"); // Remove the old section
 
-                // Rename to Descriptors and remove specified keys
-                var descriptors = new JObject();
-                foreach (var prop in properties.Properties())
+                if (string.IsNullOrWhiteSpace(sessionData))
                 {
-                    if (!new string[] { "SequenceName", "ProjectDir", "APxDir", "Date", "Time", "Day", "Month", "Year", "Hour", "Minute", "Second", "Millisecond" }.Contains(prop.Name))
-                    {
-                        descriptors.Add(prop.Name, prop.Value);
-                    }
+                    LogManager.AppendLog("❌ ERROR: sessionData is NULL or EMPTY in ModifyJsonData.");
+                    return;
                 }
-                jsonData["descriptor"] = descriptors; // Add the modified section
 
-                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented); // Update the session data
-                File.WriteAllText(GetJsonFilePath(), sessionData); // Save the changes back to file
-                LogManager.AppendLog("JSON data modified successfully.");
+                LogManager.AppendLog($"📂 ModifyJsonData started. SessionData Length: {sessionData.Length} bytes");
+
+                JObject jsonData;
+                try
+                {
+                    jsonData = JObject.Parse(sessionData);
+                }
+                catch (Exception ex)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Invalid JSON format in sessionData. Exception: {ex.Message}");
+                    return;
+                }
+
+                // 🔹 Ensure `GlobalProperties` exists
+                if (jsonData["GlobalProperties"] == null)
+                {
+                    LogManager.AppendLog("⚠ WARNING: 'GlobalProperties' key is missing. Creating an empty object.");
+                    jsonData["GlobalProperties"] = new JObject();
+                }
+
+                // ✅ Modify JSON safely
+                jsonData["ModifiedTime"] = DateTime.UtcNow.ToString("o");
+
+                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(GetJsonFilePath(), sessionData);
+
+                LogManager.AppendLog("✅ ModifyJsonData completed successfully.");
+
+                string updatedJson = File.ReadAllText(GetJsonFilePath());
+                LogManager.AppendLog($"🔍 First 300 characters after modification: {updatedJson.Substring(0, Math.Min(300, updatedJson.Length))}");
+
             }
             catch (Exception ex)
             {
-                LogManager.AppendLog($"Error modifying JSON data: {ex.Message}");
+                LogManager.AppendLog($"❌ ERROR in ModifyJsonData: {ex.Message}");
             }
         }
 
+
         private async Task UpdateDescriptorsWithUUIDs()
         {
-            string url = "https://api.thelyceum.io/api/project/metadata/";
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            var response = await client.GetAsync(url);
-
-            if (response.IsSuccessStatusCode)
+            try
             {
+                LogManager.AppendLog("📡 Fetching descriptor UUIDs from Lyceum...");
+
+                string url = "https://api.thelyceum.io/api/project/metadata/";
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var response = await client.GetAsync(url);
                 string responseContent = await response.Content.ReadAsStringAsync();
-                var descriptorsFromAPI = JObject.Parse(responseContent)["descriptor"].ToObject<List<JObject>>();
-                var jsonData = JObject.Parse(sessionData);
-                var properties = jsonData["descriptor"].ToObject<JObject>();
+
+                LogManager.AppendLog($"🔍 HTTP Response Status: {response.StatusCode}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Failed to fetch descriptor UUIDs from Lyceum. Response: {responseContent}");
+                    return;
+                }
+
+                LogManager.AppendLog("✅ Successfully received descriptor UUID response.");
+
+                // Log full response before parsing
+                //LogManager.AppendLog($"🔍 Full Descriptor Response: {responseContent}");
+
+                JObject descriptorsFromAPI;
+                try
+                {
+                    descriptorsFromAPI = JObject.Parse(responseContent);
+                }
+                catch (Exception jsonEx)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Failed to parse descriptors response as JSON: {jsonEx.Message}");
+                    return;
+                }
+
+                if (!descriptorsFromAPI.ContainsKey("descriptor") || descriptorsFromAPI["descriptor"] == null)
+                {
+                    LogManager.AppendLog("❌ ERROR: 'descriptor' key is missing from the API response.");
+                    return;
+                }
+
+                var descriptorList = descriptorsFromAPI["descriptor"]?.ToObject<List<JObject>>();
+                if (descriptorList == null || !descriptorList.Any())
+                {
+                    LogManager.AppendLog("❌ ERROR: Descriptor list is empty or null.");
+                    return;
+                }
+
+                JObject jsonData;
+                try
+                {
+                    jsonData = JObject.Parse(sessionData);
+                }
+                catch (Exception jsonEx)
+                {
+                    LogManager.AppendLog($"❌ ERROR: Failed to parse session data as JSON: {jsonEx.Message}");
+                    return;
+                }
+
+                if (!jsonData.ContainsKey("descriptor") || jsonData["descriptor"] == null)
+                {
+                    LogManager.AppendLog("⚠ WARNING: 'descriptor' key is missing in session data. Creating empty descriptor array.");
+                    jsonData["descriptor"] = new JArray();
+                }
+
                 JArray descriptorArray = new JArray();
 
-                foreach (var prop in properties.Properties())
+                foreach (var prop in jsonData["descriptor"])
                 {
-                    var matchedDescriptor = descriptorsFromAPI.FirstOrDefault(d => d["label"].ToString() == prop.Name);
+                    string propName = prop["label"]?.ToString();
+                    if (string.IsNullOrEmpty(propName))
+                    {
+                        LogManager.AppendLog("⚠ WARNING: Skipping descriptor entry with missing label.");
+                        continue;
+                    }
+
+                    var matchedDescriptor = descriptorList.FirstOrDefault(d => d["label"]?.ToString() == propName);
                     if (matchedDescriptor != null)
                     {
                         JObject descriptorObject = new JObject
-                        {
-                            {"label", prop.Value.ToString()}, // Setting label to the input value
-                            {"value", matchedDescriptor["value"].ToString()} // Using 'value' instead of 'UUID'
-                        };
+                {
+                    { "label", propName },
+                    { "value", matchedDescriptor["value"]?.ToString() ?? "UNKNOWN" } // Fallback to "UNKNOWN" if value is missing
+                };
                         descriptorArray.Add(descriptorObject);
                     }
                     else
                     {
-                        LogManager.AppendLog($"Descriptor '{prop.Name}' does not exist in Lyceum metadata and will not be included.");
+                        LogManager.AppendLog($"⚠ WARNING: Descriptor '{propName}' does not exist in Lyceum metadata.");
                     }
                 }
 
-                jsonData["descriptor"] = descriptorArray; // Apply the updated structure to the JSON
+                jsonData["descriptor"] = descriptorArray;
+
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(GetJsonFilePath(), sessionData);
-                LogManager.AppendLog("Descriptors updated with new format and saved to file.");
+
+                LogManager.AppendLog("✅ Descriptors updated with new format and saved to file.");
             }
-            else
+            catch (Exception ex)
             {
-                LogManager.AppendLog($"Failed to fetch descriptor UUIDs from Lyceum. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
+                LogManager.AppendLog($"❌ ERROR in UpdateDescriptorsWithUUIDs: {ex.Message}");
             }
         }
 
@@ -538,31 +662,44 @@ namespace LAPxv8
         {
             try
             {
-                LogManager.AppendLog("Starting processing of checked data.");
+                LogManager.AppendLog("🔄 Starting processing of checked data...");
 
                 // Step 1: Setup and get initial data
+                LogManager.AppendLog("🛠 Setting up data processing...");
                 (string dataType, string deviceLabel) = SetupDataProcessing();
+                LogManager.AppendLog($"📌 Data Type: {dataType}, Device Label: {deviceLabel}");
 
                 // Step 2: Process the checked data into a new format
+                LogManager.AppendLog("🔄 Parsing session data...");
                 var jsonData = JObject.Parse(sessionData);
                 var checkedData = jsonData["CheckedData"] as JArray ?? new JArray();
+                LogManager.AppendLog($"📊 Found {checkedData.Count} checked data items.");
+
+                LogManager.AppendLog("🚀 Processing checked data core...");
                 JArray processedCheckedData = ProcessCheckedDataCore(checkedData, dataType, deviceLabel);
+                LogManager.AppendLog($"✅ Processed {processedCheckedData.Count} checked data items.");
 
                 // Step 3: Update session data with processed information
-                UpdateSessionData(processedCheckedData);
+                LogManager.AppendLog("💾 Updating session data...");
+                await UpdateSessionData(processedCheckedData);
 
-                LogManager.AppendLog("Checked data processed and saved to file.");
+                LogManager.AppendLog("✅ Checked data processing completed and saved to file.");
             }
             catch (Exception ex)
             {
-                LogManager.AppendLog($"Error processing checked data: {ex.Message}");
+                LogManager.AppendLog($"❌ Error processing checked data: {ex.Message}");
             }
         }
-
         private (string dataType, string deviceLabel) SetupDataProcessing()
         {
+            LogManager.AppendLog("⚙️ Setting up data processing...");
             string dataType = PromptForDataType();  // Get the data type from the user
-            string deviceLabel = GetDeviceLabel(JObject.Parse(sessionData));  // Retrieve the device label from descriptors
+            LogManager.AppendLog($"📌 Data Type selected: {dataType}");
+
+            LogManager.AppendLog("🔍 Retrieving device label from descriptors...");
+            string deviceLabel = GetDeviceLabel(JObject.Parse(sessionData));
+            LogManager.AppendLog($"📌 Device Label: {deviceLabel}");
+
             return (dataType, deviceLabel);
         }
         private string PromptForDataType()
@@ -573,29 +710,38 @@ namespace LAPxv8
 
         private JArray ProcessCheckedDataCore(JArray checkedData, string dataType, string deviceLabel)
         {
+            LogManager.AppendLog("🔄 Processing checked data core...");
             JArray processedCheckedData = new JArray();
 
             foreach (JObject pathData in checkedData)
             {
                 string pathName = pathData["Name"].ToString();
+                LogManager.AppendLog($"📁 Processing Path: {pathName}");
+
                 foreach (JObject measurement in pathData["Measurements"])
                 {
                     string measurementName = measurement["Name"].ToString();
+                    LogManager.AppendLog($"📏 Processing Measurement: {measurementName}");
+
                     foreach (JObject result in measurement["Results"])
                     {
+                        LogManager.AppendLog($"🔍 Processing Result: {result["Name"]}");
                         JObject newResult = CreateResultObject(result, pathName, measurementName, dataType, deviceLabel);
                         processedCheckedData.Add(newResult);
                     }
                 }
             }
 
+            LogManager.AppendLog($"✅ Finished processing {processedCheckedData.Count} results.");
             return processedCheckedData;
         }
-
         private JObject CreateResultObject(JObject result, string pathName, string measurementName, string dataType, string deviceLabel)
         {
+            LogManager.AppendLog($"📦 Creating result object for {result["Name"]}");
+
             string resultName = result["Name"].ToString();
             string fullName = $"{pathName} - {measurementName} - {resultName}";
+            LogManager.AppendLog($"📌 Full Name: {fullName}");
 
             JObject details = new JObject
             {
@@ -614,9 +760,12 @@ namespace LAPxv8
                 ["Data"] = new JObject()
             };
 
+            LogManager.AppendLog("🔧 Populating units and data...");
             PopulateUnitsAndData(result, newResult, deviceLabel);
+            LogManager.AppendLog("🔧 Populating properties...");
             PopulateProperties(result, newResult, deviceLabel);
 
+            LogManager.AppendLog($"✅ Result object created successfully for {resultName}");
             return newResult;
         }
 
@@ -725,15 +874,23 @@ namespace LAPxv8
 
         private async Task UpdateSessionData(JArray processedData)
         {
-            var jsonData = JObject.Parse(sessionData);
-            jsonData["ProcessedCheckedData"] = processedData;
-            sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
-            File.WriteAllText(GetJsonFilePath(), sessionData);
+            try
+            {
+                LogManager.AppendLog("💾 Updating session data with processed checked data...");
+                var jsonData = JObject.Parse(sessionData);
+                jsonData["ProcessedCheckedData"] = processedData;
+                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(GetJsonFilePath(), sessionData);
 
-            // Fetch and LogManager.AppendLog unit metadata before final log message
-            await FetchAndLogUnitMetadata();
+                LogManager.AppendLog("🔍 Fetching and logging unit metadata...");
+                await FetchAndLogUnitMetadata();
 
-            LogManager.AppendLog("Checked data processed, units logged, and saved to file.");
+                LogManager.AppendLog("✅ Checked data processed, units logged, and saved to file.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ Error updating session data: {ex.Message}");
+            }
         }
 
         private string GetDeviceLabel(JObject jsonData)
@@ -1121,23 +1278,30 @@ namespace LAPxv8
                     var uploadResult = await UploadFileAsync(client, bucketName, s3ObjectName, filePath);
                     if (uploadResult.Item1)
                     {
-                        LogManager.AppendLog($"Successfully uploaded {s3ObjectName} to {bucketName}.");
-                        LogManager.AppendLog($"File URL: {uploadResult.Item2}");
+                        LogManager.AppendLog($"✅ Successfully uploaded {s3ObjectName} to {bucketName}.");
+                        LogManager.AppendLog($"📂 File URL: {uploadResult.Item2}");
 
-                        // Call the API to notify about the upload
+                        // Notify the API that the project has been uploaded
                         await NotifyProjectUpload(sessionData, uploadResult.Item2);
+
+                        // Show success message box and close the form after confirmation
+                        MessageBox.Show("Uploaded to the Lyceum Successfully!", "Upload Successful",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        this.Invoke((MethodInvoker)delegate { this.Close(); }); // Close the form after confirmation
+
                         return true;
                     }
                     else
                     {
-                        LogManager.AppendLog("File upload to S3 failed.");
+                        LogManager.AppendLog("❌ File upload to S3 failed.");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                LogManager.AppendLog($"Error uploading file to S3: {ex.Message}");
+                LogManager.AppendLog($"❌ Error uploading file to S3: {ex.Message}");
                 return false;
             }
         }

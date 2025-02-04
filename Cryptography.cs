@@ -115,7 +115,7 @@ namespace LAPxv8
                     {
                         string decryptedText = reader.ReadToEnd();
 
-                        LogManager.AppendLog($"🔓 Decryption Output:\n{decryptedText}");
+                        //LogManager.AppendLog($"🔓 Decryption Output:\n{decryptedText}");
 
                         if (string.IsNullOrWhiteSpace(decryptedText) || decryptedText.Length < 20)
                         {

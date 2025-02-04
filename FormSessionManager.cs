@@ -378,7 +378,7 @@ namespace LAPxv8
                     searchTextBox.Location = new Point(searchLabel.Right + 10, 46);
                 }
 
-                this.Size = new Size(1600, 1000); // Ensure size is applied after loading
+                this.Size = new Size(1600, 800); // Ensure size is applied after loading
                 this.WindowState = FormWindowState.Normal; // Prevent forced maximization
                 LogManager.AppendLog($"[FormSessionManager] ✅ UI positioning adjustments completed.");
             }
@@ -393,7 +393,7 @@ namespace LAPxv8
             if (formAudioPrecision8 != null)
             {
                 this.StartPosition = FormStartPosition.Manual;
-                this.Size = new Size(1600, 1000); // Ensure size isn't overridden
+                this.Size = new Size(1600, 800); // Ensure size isn't overridden
                 this.Location = new Point(
                     formAudioPrecision8.Bounds.Left + (formAudioPrecision8.Bounds.Width - this.Width) / 2,
                     formAudioPrecision8.Bounds.Top + (formAudioPrecision8.Bounds.Height - this.Height) / 2
@@ -402,7 +402,7 @@ namespace LAPxv8
             else
             {
                 this.StartPosition = FormStartPosition.CenterScreen;
-                this.Size = new Size(1600, 1000);
+                this.Size = new Size(1600, 800);
             }
         }
 
