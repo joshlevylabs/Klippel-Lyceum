@@ -27,6 +27,8 @@ namespace LAPxv8
         private ListBox globalPropertiesList;
         private string SelectedGroupId { get; set; }
         private string SelectedGroupName { get; set; }
+        private Label defaultGroupLabel;
+
         private Dictionary<string, string> unitMappings = new Dictionary<string, string>();
         private List<string> lyceumUnitList = new List<string>(); // ✅ Stores fetched units for filtering
         private string unitMappingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "unit_mappings.json");
@@ -254,10 +256,53 @@ namespace LAPxv8
                 SelectedGroupName = config["SelectedGroupName"]?.ToString();
 
                 titleFormatBox.Text = TitleFormat;
+
+                // 🔥 Ensure the saved default group is displayed on startup
+                if (!string.IsNullOrEmpty(SelectedGroupName))
+                {
+                    defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
+                    defaultGroupLabel.ForeColor = Color.LimeGreen;
+                }
+                else
+                {
+                    defaultGroupLabel.Text = "📌 No Default Group Selected";
+                    defaultGroupLabel.ForeColor = Color.Gray;
+                }
+
                 LogManager.AppendLog($"✅ Loaded Title Format: {TitleFormat}");
                 LogManager.AppendLog($"✅ Loaded Selected Group: {SelectedGroupName} (ID: {SelectedGroupId})");
             }
         }
+
+        private void UpdateGroupSelectionUI()
+        {
+            if (!string.IsNullOrEmpty(SelectedGroupName))
+            {
+                LogManager.AppendLog($"🎯 Default Group: {SelectedGroupName}");
+
+                // Display default group icon
+                PictureBox defaultGroupIcon = new PictureBox
+                {
+                    //Image = Properties.Resources.default_icon, // 🔥 Ensure you have an icon in Resources
+                    SizeMode = PictureBoxSizeMode.StretchImage,
+                    Size = new Size(24, 24),
+                    Location = new Point(520, 80)
+                };
+
+                Label defaultGroupLabel = new Label
+                {
+                    Text = $"Default Group: {SelectedGroupName}",
+                    ForeColor = Color.White,
+                    BackColor = Color.Transparent,
+                    Location = new Point(550, 85),
+                    AutoSize = true
+                };
+
+                Controls.Add(defaultGroupIcon);
+                Controls.Add(defaultGroupLabel);
+            }
+        }
+
 
         // ✅ Right-click "Add" functionality
         private void AddGlobalPropertyToTitleBox(object sender, EventArgs e)
@@ -290,6 +335,7 @@ namespace LAPxv8
             }
             return new Dictionary<string, string> { { "None Found", "" } };
         }
+
         private async void CreateGroupSelectionPanel(Panel panel)
         {
             try
@@ -307,29 +353,64 @@ namespace LAPxv8
                     ForeColor = Color.White
                 };
 
+                // 🔥 Label styled to look like an "icon"
+                defaultGroupLabel = new Label
+                {
+                    Text = "📌 No Default Group Selected", // Default text
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(255, 215, 0), // Gold color
+                    Top = 10,
+                    Left = 300
+                };
+
+                // 🔍 Search box for filtering groups
                 TextBox searchBox = new TextBox
                 {
-                    Top = 40,
+                    Top = 50,
                     Left = 10,
                     Width = 500,
                     BackColor = Color.FromArgb(50, 50, 50),
-                    ForeColor = Color.White
+                    ForeColor = Color.Gray, // Start with gray text
+                    Text = "Search groups..." // Simulated placeholder
                 };
 
-                ListBox listBox = new ListBox
+                // Handle Enter event (Clear text when user clicks inside)
+                searchBox.Enter += (sender, e) =>
+                {
+                    if (searchBox.Text == "Search groups...")
+                    {
+                        searchBox.Text = "";
+                        searchBox.ForeColor = Color.White; // Normal text color
+                    }
+                };
+
+                // Handle Leave event (Restore placeholder if empty)
+                searchBox.Leave += (sender, e) =>
+                {
+                    if (string.IsNullOrWhiteSpace(searchBox.Text))
+                    {
+                        searchBox.Text = "Search groups...";
+                        searchBox.ForeColor = Color.Gray; // Placeholder color
+                    }
+                };
+
+                // 📋 ListBox to display available groups
+                ListBox groupListBox = new ListBox
                 {
                     Top = 80,
                     Left = 10,
                     Width = 500,
-                    Height = 250,
+                    Height = 200,
                     BackColor = Color.FromArgb(50, 50, 50),
                     ForeColor = Color.White
                 };
 
+                // 💾 Save selection button
                 Button saveButton = new Button
                 {
                     Text = "Save Group Selection",
-                    Top = 340,
+                    Top = 300,
                     Left = 10,
                     Width = 200,
                     Height = 40,
@@ -337,38 +418,34 @@ namespace LAPxv8
                     ForeColor = Color.White,
                     FlatStyle = FlatStyle.Flat
                 };
-
                 saveButton.FlatAppearance.BorderSize = 1;
+
+                // 🖱 Save selected group when button is clicked
                 saveButton.Click += (sender, e) =>
                 {
-                    try
+                    if (groupListBox.SelectedItem != null)
                     {
-                        if (listBox.SelectedItem != null)
+                        string selectedGroupName = groupListBox.SelectedItem.ToString();
+                        var selectedGroup = lyceumGroups.FirstOrDefault(g => g["name"].ToString() == selectedGroupName);
+                        if (selectedGroup != null)
                         {
-                            string selectedGroupName = listBox.SelectedItem.ToString();
-                            var selectedGroup = lyceumGroups.FirstOrDefault(g => g["name"].ToString() == selectedGroupName);
-                            if (selectedGroup != null)
-                            {
-                                AppendGroupDetails(selectedGroup);
-                            }
-                        }
-                        else
-                        {
-                            MessageBox.Show("Please select a group first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            AppendGroupDetails(selectedGroup);
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        LogManager.AppendLog($"❌ ERROR in Save Group Selection: {ex.Message}");
+                        MessageBox.Show("Please select a group first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 };
 
                 panel.Controls.Add(label);
+                panel.Controls.Add(defaultGroupLabel);
                 panel.Controls.Add(searchBox);
-                panel.Controls.Add(listBox);
+                panel.Controls.Add(groupListBox);
                 panel.Controls.Add(saveButton);
 
-                await LoadLyceumGroupsAsync(searchBox, listBox);
+                // 🔄 Load Lyceum groups into the list
+                await LoadLyceumGroupsAsync(searchBox, groupListBox);
 
                 LogManager.AppendLog("✅ Group Selection Panel Initialized.");
             }
@@ -393,12 +470,6 @@ namespace LAPxv8
                 string url = "https://api.thelyceum.io/api/organization/groups/";
                 LogManager.AppendLog($"📡 API Request: {url}");
 
-                if (client == null)
-                {
-                    LogManager.AppendLog("❌ ERROR: HttpClient is null.");
-                    return;
-                }
-
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
                 var response = await client.GetAsync(url);
@@ -421,7 +492,7 @@ namespace LAPxv8
                     listBox.Items.Clear();
                     listBox.Items.AddRange(groupNames.ToArray());
 
-                    // ✅ Enable searching within the list
+                    // 🔍 Enable searching within the list
                     searchBox.TextChanged += (sender, e) =>
                     {
                         string searchText = searchBox.Text.ToLower();
@@ -550,6 +621,10 @@ namespace LAPxv8
 
                 File.WriteAllText(configFilePath, config.ToString(Newtonsoft.Json.Formatting.Indented));
 
+                // 🔥 Update the label to show the newly selected group
+                defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
+                defaultGroupLabel.ForeColor = Color.LimeGreen;
+
                 MessageBox.Show($"Group Selected: {SelectedGroupName}", "Group Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -557,6 +632,7 @@ namespace LAPxv8
                 LogManager.AppendLog($"❌ ERROR in AppendGroupDetails: {ex.Message}");
             }
         }
+
         private Dictionary<string, string> GetLyceumGroupsFromParent()
         {
             return Application.OpenForms.OfType<BaseForm>().OfType<IGlobalPropertiesProvider>().FirstOrDefault()?.GetLyceumGroups() ?? new Dictionary<string, string>();
