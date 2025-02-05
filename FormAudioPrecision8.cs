@@ -67,6 +67,47 @@ namespace LAPxv8
 
         protected override void AddCustomMenuItems()
         {
+            // Find the existing 'File' menu from BaseForm
+            ToolStripMenuItem fileMenu = menuStrip.Items.OfType<ToolStripMenuItem>()
+                                   .FirstOrDefault(m => m.Text == "File");
+
+            if (fileMenu == null)
+            {
+                fileMenu = new ToolStripMenuItem("File");
+                menuStrip.Items.Insert(0, fileMenu);
+            }
+
+            // Get existing File menu items from BaseForm
+            List<ToolStripItem> baseFormFileMenuItems = new List<ToolStripItem>();
+            foreach (ToolStripItem item in fileMenu.DropDownItems)
+            {
+                baseFormFileMenuItems.Add(item);
+            }
+            fileMenu.DropDownItems.Clear(); // Remove all existing items temporarily
+
+            // Add new FormAudioPrecision8-specific items first
+            ToolStripMenuItem limitEditorMenuItem = new ToolStripMenuItem("Limit Editor");
+            limitEditorMenuItem.Click += LimitEditorButton_Click;
+            fileMenu.DropDownItems.Add(limitEditorMenuItem);
+
+            ToolStripMenuItem sessionsMenuItem = new ToolStripMenuItem("Sessions");
+            sessionsMenuItem.Click += SessionsButton_Click;
+            fileMenu.DropDownItems.Add(sessionsMenuItem);
+
+            ToolStripMenuItem testResultsGridMenuItem = new ToolStripMenuItem("Test Results Grid");
+            testResultsGridMenuItem.Click += TestResultsGridMenuItem_Click;
+            fileMenu.DropDownItems.Add(testResultsGridMenuItem);
+
+            ToolStripMenuItem logWindowMenuItem = new ToolStripMenuItem("Log Window");
+            logWindowMenuItem.Click += LogWindowMenuItem_Click;
+            fileMenu.DropDownItems.Add(logWindowMenuItem);
+
+            // Re-add BaseForm's File menu items below the new ones
+            foreach (ToolStripItem item in baseFormFileMenuItems)
+            {
+                fileMenu.DropDownItems.Add(item);
+            }
+
             // APx500 Menu
             ToolStripMenuItem apx500Menu = new ToolStripMenuItem("AP Controls");
 
@@ -87,7 +128,6 @@ namespace LAPxv8
             // Download Menu
             ToolStripMenuItem downloadMenu = new ToolStripMenuItem("Data");
 
-            // Add "Create Session" Menu Item
             ToolStripMenuItem createSessionMenuItem = new ToolStripMenuItem("Create Session");
             createSessionMenuItem.Click += CreateSessionMenuItem_Click;
             downloadMenu.DropDownItems.Add(createSessionMenuItem);
@@ -105,30 +145,8 @@ namespace LAPxv8
             downloadMenu.DropDownItems.Add(downloadLimitsMenuItem);
 
             menuStrip.Items.Add(downloadMenu);
-
-            // Open Menu
-            ToolStripMenuItem openMenu = new ToolStripMenuItem("Open");
-
-            ToolStripMenuItem limitEditorMenuItem = new ToolStripMenuItem("Limit Editor");
-            limitEditorMenuItem.Click += LimitEditorButton_Click;
-            openMenu.DropDownItems.Add(limitEditorMenuItem);
-
-            ToolStripMenuItem sessionsMenuItem = new ToolStripMenuItem("Sessions");
-            sessionsMenuItem.Click += SessionsButton_Click;
-            openMenu.DropDownItems.Add(sessionsMenuItem);
-
-            // Add "Test Results Grid" Menu Item
-            ToolStripMenuItem testResultsGridMenuItem = new ToolStripMenuItem("Test Results Grid");
-            testResultsGridMenuItem.Click += TestResultsGridMenuItem_Click;
-            openMenu.DropDownItems.Add(testResultsGridMenuItem);
-
-            // Add Log Window menu item
-            ToolStripMenuItem logWindowMenuItem = new ToolStripMenuItem("Log Window");
-            logWindowMenuItem.Click += LogWindowMenuItem_Click;
-            openMenu.DropDownItems.Add(logWindowMenuItem);
-
-            menuStrip.Items.Add(openMenu);
         }
+
         private void InitializeComponents()
         {
             // Set Form Properties
@@ -2130,9 +2148,30 @@ namespace LAPxv8
         }
         private void LogWindowMenuItem_Click(object sender, EventArgs e)
         {
-            LogManager.ShowLogWindow();
-            LogManager.AppendLog("Log window opened.");
+            // Try retrieving from both User and Machine scopes
+            string adminPassUser = Environment.GetEnvironmentVariable("LYCEUM_ADMIN_PASS", EnvironmentVariableTarget.User);
+            string adminPassMachine = Environment.GetEnvironmentVariable("LYCEUM_ADMIN_PASS", EnvironmentVariableTarget.Machine);
+
+            string adminPass = adminPassUser ?? adminPassMachine; // Prefer User-level if both exist
+
+            Console.WriteLine($"Environment Variable LYCEUM_ADMIN_PASS: {(adminPass != null ? "Found" : "Not Found")}");
+            Console.WriteLine($"LYCEUM_ADMIN_PASS Value: {adminPass}");
+
+            if (adminPass == "LyceumAdmin2025")
+            {
+                LogManager.ShowLogWindow();
+                Console.WriteLine("Log window opened successfully.");
+            }
+            else
+            {
+                Console.WriteLine("Access Denied: Invalid admin password.");
+                MessageBox.Show($"Access Denied: Invalid admin password.\n\n"
+                                + $"Environment Variable Found: {(adminPass != null ? "Yes" : "No")}\n"
+                                + $"Environment Variable Value: {adminPass}",
+                                "Permission Denied", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+            }
         }
+
 
         public class SignalPathData
         {
