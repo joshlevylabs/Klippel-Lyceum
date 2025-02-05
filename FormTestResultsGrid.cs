@@ -3295,15 +3295,50 @@ namespace LAPxv8
             return groupBox;
         }
 
-        // Add a test name based on user input
+        // Add a test name based on user input and update the test grid
         private void AddCustomTestName()
         {
             string userInput = customTestNameTextBox.Text.Trim();
+            LogManager.AppendLog($"Attempting to add test: {userInput}");
+
             if (!string.IsNullOrWhiteSpace(userInput))
             {
-                string testName = $"{userInput} - Audio Precision 8.0";
-                addedTestsListBox.Items.Add(testName);
+                addedTestsListBox.Items.Add(userInput);
+                LogManager.AppendLog($"Test '{userInput}' added to list.");
+                testNames.Add(userInput); // Ensure testNames list is updated
                 customTestNameTextBox.Clear(); // Clear the TextBox after adding
+
+                // Ensure the test column exists in the grid
+                string resultColumnName = userInput + " Result";
+                if (!testResultsTable.Columns.Contains(resultColumnName))
+                {
+                    LogManager.AppendLog($"Adding column '{resultColumnName}' to testResultsTable.");
+                    testResultsTable.Columns.Add(new DataColumn(resultColumnName));
+
+                    // Populate existing rows with default value
+                    foreach (DataRow row in testResultsTable.Rows)
+                    {
+                        row[resultColumnName] = "No Result";
+                    }
+
+                    LogManager.AppendLog($"Column '{resultColumnName}' added and populated.");
+                }
+                else
+                {
+                    LogManager.AppendLog($"Column '{resultColumnName}' already exists in testResultsTable.");
+                }
+
+                // Force DataGridView to refresh
+                dataGridView.DataSource = null;
+                dataGridView.DataSource = testResultsTable;
+                dataGridView.Refresh(); // Explicitly refresh the grid
+                LogManager.AppendLog($"DataGridView refreshed. Columns count: {dataGridView.Columns.Count}");
+
+                UpdateResultsGrid(); // Ensure data updates correctly
+            }
+            else
+            {
+                LogManager.AppendLog("Test name was empty, not adding column.");
             }
         }
 
