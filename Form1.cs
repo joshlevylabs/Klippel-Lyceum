@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using System.Text;
 using System.Security.Cryptography;
 using System.IO;
+using static LAPxv8.FormAudioPrecision8;
 
 namespace LAPxv8
 {
@@ -24,7 +25,7 @@ namespace LAPxv8
         private Label toggleLogsLabel = new Label();
         private bool logsVisible = false;
 
-        public Form1()
+        public Form1() : base(false, SecureStorage.Load("AccessToken"))
         {
             InitializeForm1Components();
             InitializeOrLoadTokens();
@@ -211,6 +212,8 @@ namespace LAPxv8
                 var verificationSuccess = await CheckVerificationStatus();
                 if (verificationSuccess)
                 {
+                    LogManager.AppendLog($"✅ Login successful. Storing accessToken globally.");
+                    BaseForm.SetAccessToken(accessToken);  // ✅ Store globally in BaseForm
                     OpenFormAudioPrecision();
                 }
                 else
@@ -223,6 +226,7 @@ namespace LAPxv8
                 MessageBox.Show("Login failed. Please try again.");
             }
         }
+
         private async Task<bool> AttemptLogin(string email, string password)
         {
             var json = JsonConvert.SerializeObject(new { email, password });
@@ -245,9 +249,12 @@ namespace LAPxv8
                     var tokenData = JsonConvert.DeserializeObject<dynamic>(responseContent);
                     accessToken = tokenData.access;
                     refreshToken = tokenData.refresh;
-                    LogMessage("Login successful.");
+                    SecureStorage.Save("AccessToken", accessToken); // ✅ Save access token
+                    SecureStorage.Save("RefreshToken", refreshToken);
+                    LogMessage("✅ Login successful. Access token saved.");
                     return true;
                 }
+
                 else
                 {
                     LogError($"Login failed. Status code: {response.StatusCode}, Response: {responseContent}");
@@ -455,11 +462,11 @@ namespace LAPxv8
             if (!string.IsNullOrEmpty(loadedAccessToken))
             {
                 accessToken = loadedAccessToken;
-                LogMessage("Access token loaded successfully.");
+                LogMessage($"✅ Access token loaded successfully: {accessToken.Substring(0, Math.Min(10, accessToken.Length))}...");
             }
             else
             {
-                LogError("No access token found.");
+                LogError("❌ No access token found.");
             }
 
             var loadedRefreshToken = SecureStorage.Load("RefreshToken");

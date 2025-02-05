@@ -21,6 +21,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using ScottPlot;
 using Newtonsoft.Json.Linq;
+using System.Net.NetworkInformation;
 
 
 namespace LAPxv8
@@ -47,6 +48,8 @@ namespace LAPxv8
         private bool xStartValid, xEndValid, yStartValid, yEndValid;
 
         public List<ProjectSession> sessionList = new List<ProjectSession>();
+        public Dictionary<string, string> globalProperties = new Dictionary<string, string>(); // Add this to FormAudioPrecision8.cs
+
 
         // This should be the only declaration of SessionDataHandler
         public delegate void SessionDataHandler(ProjectSession newSession);
@@ -489,7 +492,13 @@ namespace LAPxv8
 
                 FillResultsTreeView();
                 LogManager.AppendLog("Results TreeView populated successfully.");
-                DisplayProperties();
+
+                DisplayProperties(); // This updates propertiesTextBox
+
+                // ✅ Parse global properties from propertiesTextBox
+                globalProperties = ParsePropertiesToDictionary(propertiesTextBox.Text);
+                LogManager.AppendLog($"✅ Parsed {globalProperties.Count} global properties from DisplayProperties().");
+
             }
             catch (Exception ex)
             {
@@ -497,6 +506,26 @@ namespace LAPxv8
             }
         }
 
+        // ✅ Helper function to convert propertiesTextBox.Text into a dictionary
+        private Dictionary<string, string> ParsePropertiesToDictionary(string text)
+        {
+            var properties = new Dictionary<string, string>();
+
+            if (!string.IsNullOrEmpty(text))
+            {
+                var lines = text.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(new[] { ':' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        properties[parts[0].Trim()] = parts[1].Trim();
+                    }
+                }
+            }
+
+            return properties;
+        }
         private void LimitEditorButton_Click(object sender, EventArgs e)
         {
             if (checkedData == null || !checkedData.Any())
@@ -2065,22 +2094,7 @@ namespace LAPxv8
             LogManager.AppendLog("GetCurrentFormData: Returning abbreviated JSON data: " + abbreviatedData);
             return jsonData;
         }
-        private Dictionary<string, string> ParsePropertiesToDictionary(string propertiesText)
-        {
-            var dictionary = new Dictionary<string, string>();
-            var lines = propertiesText.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var line in lines)
-            {
-                var parts = line.Split(new[] { ": " }, 2, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2)
-                {
-                    dictionary[parts[0].Trim()] = parts[1].Trim();
-                }
-            }
-
-            return dictionary;
-        }
+        
         private object CreateResultObject(ResultData result)
         {
             // Only include relevant fields, excluding limits

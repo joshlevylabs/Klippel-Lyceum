@@ -18,7 +18,7 @@ namespace LAPxv8
         private string encryptionKey;
         private string sessionFolder;
         public string SessionTitle { get; private set; } // Store session title
-
+        private string configFilePath;
 
         public AutoSessionCreator(FormAudioPrecision8 apxForm, string accessToken, string refreshToken, List<SignalPathData> checkedData, Dictionary<string, string> globalProperties)
         {
@@ -42,6 +42,9 @@ namespace LAPxv8
             {
                 throw new Exception("Encryption key retrieval failed.");
             }
+
+            // ✅ Set up config file path
+            configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "config.json");
         }
 
         public void Run()
@@ -50,21 +53,63 @@ namespace LAPxv8
             {
                 LogManager.AppendLog("AutoSessionCreator: Initiating session creation.");
 
-                // ✅ Prompt user for a session title
-                string title = PromptForSessionTitle();
+                // ✅ Retrieve last saved title format from Automation Configs
+                string titleTemplate = GetSavedSessionTitle();
 
-                // ✅ If user cancels, fallback to timestamp
-                if (string.IsNullOrWhiteSpace(title))
+                if (string.IsNullOrWhiteSpace(titleTemplate))
                 {
-                    title = $"AutoSession_{DateTime.Now:yyyyMMdd_HHmmss}";
-                    LogManager.AppendLog($"Session title auto-generated: {title}");
+                    LogManager.AppendLog("⚠ WARNING: No saved session title found. Retrieving from Automation Configs.");
+                    titleTemplate = GetTitleFormatFromConfig();
                 }
 
-                var sessionData = new { Title = title, GlobalProperties = globalProperties, CheckedData = checkedData };
-                SaveSession(sessionData, title);
+                // ✅ Log the retrieved template before processing
+                LogManager.AppendLog($"[DEBUG] Retrieved Title Format from config: {titleTemplate}");
 
-                this.SessionTitle = title;
-                LogManager.AppendLog($"✅ Session '{title}' created successfully.");
+                // ✅ If no title format exists, always prompt the user
+                if (string.IsNullOrWhiteSpace(titleTemplate))
+                {
+                    LogManager.AppendLog("⚠ WARNING: No automated session title format found. Prompting user for input.");
+                    titleTemplate = PromptForSessionTitle();
+
+                    if (string.IsNullOrWhiteSpace(titleTemplate))
+                    {
+                        titleTemplate = $"AutoSession_{DateTime.Now:yyyyMMdd_HHmmss}";
+                        LogManager.AppendLog($"[DEBUG] AutoSessionCreator: No user input. Using fallback title -> {titleTemplate}");
+                    }
+                }
+
+                // ✅ Log the original title template
+                LogManager.AppendLog($"[DEBUG] AutoSessionCreator: Original session title template -> {titleTemplate}");
+
+                // ✅ Replace placeholders with actual values
+                string resolvedTitle = ReplacePlaceholdersWithValues(titleTemplate, globalProperties);
+
+                // ✅ If the resolved title still contains placeholders, ask user for a manual title
+                if (resolvedTitle.Contains("<"))
+                {
+                    LogManager.AppendLog("⚠ WARNING: Some placeholders were not replaced. Prompting user for a manual session title.");
+                    resolvedTitle = PromptForSessionTitle();
+
+                    if (string.IsNullOrWhiteSpace(resolvedTitle))
+                    {
+                        resolvedTitle = $"AutoSession_{DateTime.Now:yyyyMMdd_HHmmss}";
+                        LogManager.AppendLog($"[DEBUG] AutoSessionCreator: No user input. Using fallback title -> {resolvedTitle}");
+                    }
+                }
+
+                // ✅ Log the final resolved title
+                LogManager.AppendLog($"[DEBUG] AutoSessionCreator: Resolved session title -> {resolvedTitle}");
+
+                // ✅ Sanitize filename to remove illegal characters
+                resolvedTitle = SanitizeFileName(resolvedTitle);
+                LogManager.AppendLog($"[DEBUG] AutoSessionCreator: Sanitized session title -> {resolvedTitle}");
+
+                // ✅ Save session
+                var sessionData = new { Title = resolvedTitle, GlobalProperties = globalProperties, CheckedData = checkedData };
+                SaveSession(sessionData, resolvedTitle);
+                this.SessionTitle = resolvedTitle;
+
+                LogManager.AppendLog($"✅ Session '{resolvedTitle}' created successfully.");
             }
             catch (Exception ex)
             {
@@ -72,7 +117,85 @@ namespace LAPxv8
             }
         }
 
-        
+
+        // ✅ Retrieve title format from Automation Configs file
+        private string GetTitleFormatFromConfig()
+        {
+            try
+            {
+                if (File.Exists(configFilePath))
+                {
+                    string json = File.ReadAllText(configFilePath);
+                    var config = JsonConvert.DeserializeObject<dynamic>(json);
+                    string titleFormat = config.TitleFormat;
+                    LogManager.AppendLog($"[DEBUG] Retrieved Title Format from config: {titleFormat}");
+                    return titleFormat;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR retrieving Title Format from config: {ex.Message}");
+            }
+            return string.Empty;
+        }
+
+        // ✅ Function to retrieve the last saved session title from Automation Configs
+        private string GetSavedSessionTitle()
+        {
+            try
+            {
+                string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum", "session_title.txt");
+
+                if (File.Exists(configFilePath))
+                {
+                    string savedTitle = File.ReadAllText(configFilePath).Trim();
+                    LogManager.AppendLog($"[DEBUG] Retrieved saved session title -> {savedTitle}");
+                    return savedTitle;
+                }
+
+                LogManager.AppendLog("⚠ WARNING: No saved session title found.");
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR retrieving saved session title: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+
+        // ✅ Function to replace placeholders (e.g., <DeviceId>) with actual values from globalProperties
+        private string ReplacePlaceholdersWithValues(string title, Dictionary<string, string> properties)
+        {
+            if (properties == null || properties.Count == 0)
+            {
+                LogManager.AppendLog("⚠ WARNING: No global properties found for title replacement.");
+                return title;
+            }
+
+            foreach (var kvp in properties)
+            {
+                string placeholder = $"<{kvp.Key}>";  // Example: <DeviceId>
+                if (title.Contains(placeholder))
+                {
+                    title = title.Replace(placeholder, kvp.Value);
+                    LogManager.AppendLog($"[DEBUG] Replaced {placeholder} with '{kvp.Value}'");
+                }
+            }
+
+            return title;
+        }
+
+        // ✅ Function to remove illegal characters from filename
+        private string SanitizeFileName(string title)
+        {
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            foreach (char c in invalidChars)
+            {
+                title = title.Replace(c.ToString(), "_"); // Replace illegal chars with "_"
+            }
+            return title;
+        }
         private string PromptForSessionTitle()
         {
             using (Form prompt = new Form())
@@ -169,6 +292,5 @@ namespace LAPxv8
                 LogManager.AppendLog($"❌ ERROR: Failed to write encrypted file: {ex.Message}");
             }
         }
-
     }
 }

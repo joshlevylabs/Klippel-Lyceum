@@ -5,24 +5,40 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using static LAPxv8.FormAudioPrecision8;
 
 
 namespace LAPxv8
 {
     public partial class BaseForm : Form
     {
+        protected static string accessToken; 
         protected MenuStrip menuStrip;
         private bool showMenuStrip = true; // Default to true, but child classes can override this
         private bool dragging = false;
         private Point dragCursorPoint;
         private Point dragFormPoint;
 
-        public BaseForm(bool showMenu = true) // Allow child classes to disable menu
+        public BaseForm(bool showMenu = true, string token = null)
         {
+            if (!string.IsNullOrEmpty(token))
+            {
+                accessToken = token; // ✅ Set the static accessToken if provided
+            }
+
             showMenuStrip = showMenu;
+            LogManager.AppendLog($"🔑 BaseForm initialized with accessToken: {(string.IsNullOrEmpty(accessToken) ? "NULL" : "Exists")}");
             InitializeBaseFormComponents();
         }
-
+        public static void SetAccessToken(string token)
+        {
+            accessToken = token;  // ✅ Set the static token globally
+            LogManager.AppendLog($"✅ accessToken set in BaseForm: {token.Substring(0, Math.Min(10, token.Length))}...");
+        }
+        public static string GetAccessToken()
+        {
+            return accessToken;  // ✅ Retrieve the shared accessToken
+        }
         protected void InitializeBaseFormComponents()
         {
             string basePath = Application.StartupPath;
@@ -50,6 +66,11 @@ namespace LAPxv8
                 };
 
                 var fileMenu = new ToolStripMenuItem("File");
+
+                var automationConfigMenuItem = new ToolStripMenuItem("Automation Configs");
+                automationConfigMenuItem.Click += AutomationConfigMenuItem_Click;
+                fileMenu.DropDownItems.Add(automationConfigMenuItem);
+
                 var logoutMenuItem = new ToolStripMenuItem("Logout"); // Changed from Home to Logout
                 logoutMenuItem.Click += LogoutMenuItem_Click;
                 fileMenu.DropDownItems.Add(logoutMenuItem);
@@ -67,6 +88,27 @@ namespace LAPxv8
             this.MouseMove += BaseForm_MouseMove;
             this.MouseUp += BaseForm_MouseUp;
         }
+        private void AutomationConfigMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    LogManager.AppendLog("❌ ERROR: accessToken is null in BaseForm.");
+                    MessageBox.Show("Access token is missing. Please log in again.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Opening FormAutomationConfigs with accessToken: {accessToken.Substring(0, Math.Min(10, accessToken.Length))}...");
+                var automationConfigForm = new FormAutomationConfigs(accessToken);
+                automationConfigForm.Show();
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR Opening FormAutomationConfigs: {ex.Message}");
+            }
+        }
+
         private void LogoutMenuItem_Click(object sender, EventArgs e)
         {
             // Close all open forms

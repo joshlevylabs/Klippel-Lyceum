@@ -15,6 +15,7 @@ using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System;
 using static LAPxv8.FormAudioPrecision8;
+using Newtonsoft.Json;
 
 namespace LAPxv8
 {
@@ -27,6 +28,8 @@ namespace LAPxv8
         private static readonly HttpClient client = new HttpClient(); // HttpClient instance
         private Dictionary<string, JObject> unitDetails = new Dictionary<string, JObject>();
         private Dictionary<string, string> unitMappings = new Dictionary<string, string>();
+        private string savedGroupId;
+        private string savedGroupName;
 
         public FormLyceumDataUpload(string accessToken, string refreshToken, string sessionTitle, string sessionData)
         {
@@ -398,26 +401,59 @@ namespace LAPxv8
                 LogManager.AppendLog($"❌ ERROR in UpdateDescriptorsWithUUIDs: {ex.Message}");
             }
         }
+        private void LoadSavedGroup()
+        {
+            string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "config.json");
+
+            if (File.Exists(configFilePath))
+            {
+                string json = File.ReadAllText(configFilePath);
+                var config = JsonConvert.DeserializeObject<JObject>(json);
+                savedGroupId = config["SelectedGroupId"]?.ToString();
+                savedGroupName = config["SelectedGroupName"]?.ToString();
+
+                if (!string.IsNullOrEmpty(savedGroupId) && !string.IsNullOrEmpty(savedGroupName))
+                {
+                    LogManager.AppendLog($"✅ Loaded Saved Group: {savedGroupName} (ID: {savedGroupId})");
+                }
+            }
+        }
 
         private async Task ShowGroupSelectionForm()
         {
-            string url = "https://api.thelyceum.io/api/organization/groups/";
-            LogManager.AppendLog($"Request sent to: {url}");
-            LogManager.AppendLog($"Using token: {accessToken.Substring(0, 15)}...");  // LogManager.AppendLog part of the token for security
+            LoadSavedGroup();
 
+            if (!string.IsNullOrEmpty(savedGroupId))
+            {
+                LogManager.AppendLog($"✅ Using saved group: {savedGroupName} (ID: {savedGroupId})");
+
+                var jsonData = JObject.Parse(sessionData);
+                jsonData["GroupDetails"] = new JObject
+        {
+            {"group_name", savedGroupName},
+            {"group_id", savedGroupId}
+        };
+
+                sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(GetJsonFilePath(), sessionData);
+                return;
+            }
+
+            string url = "https://api.thelyceum.io/api/organization/groups/";
+            LogManager.AppendLog($"📡 Request sent to: {url}");
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
             try
             {
                 var response = await client.GetAsync(url);
-                LogManager.AppendLog($"Response Status: {response.StatusCode}");
+                LogManager.AppendLog($"📡 Response Status: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     string responseContent = await response.Content.ReadAsStringAsync();
                     var groups = JArray.Parse(responseContent);
-
                     var selectedGroup = await PromptUserForGroupSelection(groups);
+
                     if (selectedGroup != null)
                     {
                         await AppendGroupDetails(selectedGroup);
@@ -429,15 +465,14 @@ namespace LAPxv8
                 }
                 else
                 {
-                    LogManager.AppendLog("Failed to fetch groups - Unauthorized or endpoint error");
+                    LogManager.AppendLog("❌ ERROR: Failed to fetch groups.");
                 }
             }
             catch (Exception ex)
             {
-                LogManager.AppendLog($"Error during group details fetch: {ex.Message}");
+                LogManager.AppendLog($"❌ ERROR fetching groups: {ex.Message}");
             }
         }
-
         private async Task<JObject> PromptUserForGroupSelection(JArray groups)
         {
             var tcs = new TaskCompletionSource<JObject>();

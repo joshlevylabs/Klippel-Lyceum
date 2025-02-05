@@ -58,6 +58,8 @@
     <Compile Include="FormAPLimitEditor.Designer.cs" />
     <Compile Include="FormAudioPrecision8.cs" />
     <Compile Include="FormAudioPrecision8.Designer.cs" />
+    <Compile Include="FormAutomationConfigs.cs" />
+    <Compile Include="FormAutomationConfigs.Designer.cs" />
     <Compile Include="FormGridViewResults.cs" />
     <Compile Include="FormGridViewResults.Designer.cs" />
     <Compile Include="FormLyceumDataUpload.cs" />
