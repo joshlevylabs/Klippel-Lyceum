@@ -27,6 +27,10 @@ namespace LAPxv8
         private ListBox globalPropertiesList;
         private string SelectedGroupId { get; set; }
         private string SelectedGroupName { get; set; }
+        private Dictionary<string, string> unitMappings = new Dictionary<string, string>();
+        private List<string> lyceumUnitList = new List<string>(); // ✅ Stores fetched units for filtering
+        private string unitMappingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "unit_mappings.json");
+
 
         public FormAutomationConfigs(string accessToken, Dictionary<string, string> globalProperties = null)
     : base(false, BaseForm.GetAccessToken())
@@ -92,8 +96,21 @@ namespace LAPxv8
             CreateGroupSelectionPanel(groupPanel);
             groupTab.Controls.Add(groupPanel);
 
+            // ✅ Create the Unit Mappings tab
+            TabPage unitMappingTab = new TabPage("Unit Mappings")
+            {
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                AutoScroll = true
+            };
+            unitMappingTab.Controls.Add(CreateUnitMappingsPanel());
+
+            // ✅ Add all tabs to the tabControl
             tabControl.TabPages.Add(titleTab);
             tabControl.TabPages.Add(groupTab);
+            tabControl.TabPages.Add(unitMappingTab); // 🔥 This was missing!
+
+            // ✅ Add the tab control to the form
             Controls.Add(tabControl);
         }
 
@@ -544,6 +561,234 @@ namespace LAPxv8
         {
             return Application.OpenForms.OfType<BaseForm>().OfType<IGlobalPropertiesProvider>().FirstOrDefault()?.GetLyceumGroups() ?? new Dictionary<string, string>();
         }
+
+        private Panel CreateUnitMappingsPanel()
+        {
+            Panel panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(45, 45, 48) };
+
+            Label mappingLabel = new Label
+            {
+                Text = "Automate Unit Mappings:",
+                AutoSize = true,
+                Top = 10,
+                Left = 10,
+                ForeColor = Color.White
+            };
+
+            ListBox unitMappingList = new ListBox
+            {
+                Top = 40,
+                Left = 10,
+                Width = 500,
+                Height = 200,
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = Color.White
+            };
+
+            Label originalUnitLabel = new Label
+            {
+                Text = "Unmatched Data Session Unit:",
+                AutoSize = true,
+                Top = 250,
+                Left = 10,
+                ForeColor = Color.White
+            };
+
+            TextBox originalUnitBox = new TextBox
+            {
+                Top = 275,
+                Left = 10,
+                Width = 230,
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = Color.White
+            };
+
+            Label replacementUnitLabel = new Label
+            {
+                Text = "Matching Lyceum Unit:",
+                AutoSize = true,
+                Top = 250,
+                Left = 250,
+                ForeColor = Color.White
+            };
+
+            ComboBox replacementUnitDropdown = new ComboBox
+            {
+                Top = 275,
+                Left = 250,
+                Width = 230,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = Color.White
+            };
+
+            replacementUnitDropdown.TextChanged += (sender, e) =>
+            {
+                string searchText = replacementUnitDropdown.Text.ToLower();
+                var filteredUnits = lyceumUnitList.Where(unit => unit.ToLower().Contains(searchText)).ToArray();
+
+                replacementUnitDropdown.Items.Clear();
+                replacementUnitDropdown.Items.AddRange(filteredUnits);
+                replacementUnitDropdown.DroppedDown = true;
+                Cursor.Current = Cursors.Default;
+            };
+
+            Button addMappingButton = new Button
+            {
+                Text = "Add Mapping",
+                Top = 310,
+                Left = 10,
+                Width = 170,
+                Height = 40,
+                BackColor = Color.FromArgb(75, 110, 175),
+                ForeColor = Color.White
+            };
+
+            Button removeMappingButton = new Button
+            {
+                Text = "Remove Selected",
+                Top = 310,
+                Left = 190,
+                Width = 170,
+                Height = 40,
+                BackColor = Color.FromArgb(175, 75, 75),
+                ForeColor = Color.White
+            };
+
+            addMappingButton.Click += (sender, e) =>
+            {
+                if (!string.IsNullOrWhiteSpace(originalUnitBox.Text) && !string.IsNullOrWhiteSpace(replacementUnitDropdown.Text))
+                {
+                    unitMappings[originalUnitBox.Text] = replacementUnitDropdown.Text;
+                    unitMappingList.Items.Add($"{originalUnitBox.Text} → {replacementUnitDropdown.Text}");
+                    SaveUnitMappings();
+                }
+            };
+
+            removeMappingButton.Click += (sender, e) =>
+            {
+                if (unitMappingList.SelectedItem != null)
+                {
+                    string selectedMapping = unitMappingList.SelectedItem.ToString();
+                    string originalUnit = selectedMapping.Split('→')[0].Trim();
+                    unitMappings.Remove(originalUnit);
+                    unitMappingList.Items.Remove(unitMappingList.SelectedItem);
+                    SaveUnitMappings();
+                }
+            };
+
+            panel.Controls.Add(mappingLabel);
+            panel.Controls.Add(unitMappingList);
+            panel.Controls.Add(originalUnitLabel);
+            panel.Controls.Add(originalUnitBox);
+            panel.Controls.Add(replacementUnitLabel);
+            panel.Controls.Add(replacementUnitDropdown);
+            panel.Controls.Add(addMappingButton);
+            panel.Controls.Add(removeMappingButton);
+
+            // Fetch Lyceum Units and Populate Dropdown
+            Task.Run(async () => await FetchAndPopulateUnits(replacementUnitDropdown));
+
+            // ✅ Load existing mappings from file
+            LoadUnitMappings(unitMappingList);
+
+            return panel;
+        }
+
+        private async Task FetchAndPopulateUnits(ComboBox unitDropdown)
+        {
+            try
+            {
+                string url = "https://api.thelyceum.io/api/project/metadata/";
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                var response = await client.GetAsync(url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseContent = await response.Content.ReadAsStringAsync();
+                    var metadata = JObject.Parse(responseContent);
+
+                    var xUnits = metadata["x_units"].Children<JObject>().ToList();
+                    var yUnits = metadata["y_units"].Children<JObject>().ToList();
+
+                    List<string> unitNames = new List<string>();
+
+                    foreach (var unit in xUnits.Concat(yUnits))
+                    {
+                        string label = unit["label"].ToString();
+                        string symbol = unit["symbol"]?.ToString() ?? "";
+                        string magnitudeSymbol = unit["magnitude_symbol"]?.ToString() ?? "";
+                        string fullSymbol = $"{magnitudeSymbol}{symbol}".Trim();
+
+                        if (!string.IsNullOrEmpty(label)) unitNames.Add(label);
+                        if (!string.IsNullOrEmpty(fullSymbol) && fullSymbol != label) unitNames.Add(fullSymbol);
+                    }
+
+                    lyceumUnitList = unitNames.Distinct().OrderBy(name => name).ToList(); // ✅ Store for filtering
+
+                    unitDropdown.Invoke((MethodInvoker)(() =>
+                    {
+                        unitDropdown.Items.Clear();
+                        unitDropdown.Items.AddRange(lyceumUnitList.ToArray());
+                    }));
+
+                    LogManager.AppendLog($"✅ Successfully fetched {lyceumUnitList.Count} units from Lyceum.");
+                }
+                else
+                {
+                    LogManager.AppendLog($"❌ Failed to fetch units. Status: {response.StatusCode}. Response: {await response.Content.ReadAsStringAsync()}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ Error fetching units: {ex.Message}");
+            }
+        }
+
+        private void SaveUnitMappings()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(unitMappingsFilePath));
+                var config = new JObject
+                {
+                    ["UnitMappings"] = JObject.FromObject(unitMappings)
+                };
+
+                File.WriteAllText(unitMappingsFilePath, config.ToString(Formatting.Indented));
+                LogManager.AppendLog("✅ Unit mappings saved successfully.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR saving unit mappings: {ex.Message}");
+            }
+        }
+
+        private void LoadUnitMappings(ListBox unitMappingList)
+        {
+            try
+            {
+                if (File.Exists(unitMappingsFilePath))
+                {
+                    string json = File.ReadAllText(unitMappingsFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+                    unitMappings = config["UnitMappings"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
+
+                    unitMappingList.Items.Clear();
+                    foreach (var mapping in unitMappings)
+                    {
+                        unitMappingList.Items.Add($"{mapping.Key} → {mapping.Value}");
+                    }
+
+                    LogManager.AppendLog($"✅ Loaded {unitMappings.Count} unit mappings from file.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR loading unit mappings: {ex.Message}");
+            }
+        }
+
     }
 
     public interface IGlobalPropertiesProvider
