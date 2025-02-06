@@ -237,12 +237,24 @@ namespace LAPxv8
 
         private void SaveTitleFormat()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(configFilePath));
-            var config = new { TitleFormat = TitleFormat };
-            File.WriteAllText(configFilePath, JsonConvert.SerializeObject(config, Formatting.Indented));
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(configFilePath));
+                var config = new JObject
+                {
+                    ["TitleFormat"] = TitleFormat,
+                    ["SelectedGroupId"] = SelectedGroupId ?? "",
+                    ["SelectedGroupName"] = SelectedGroupName ?? ""
+                };
 
-            // ✅ Log the saved title format
-            LogManager.AppendLog($"✅ Saved Title Format: {TitleFormat}");
+                File.WriteAllText(configFilePath, config.ToString(Formatting.Indented));
+                LogManager.AppendLog($"✅ Saved Title Format: {TitleFormat}");
+                LogManager.AppendLog($"✅ Saved Selected Group: {SelectedGroupName} (ID: {SelectedGroupId})");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR saving title format: {ex.Message}");
+            }
         }
 
         private void LoadTitleFormat()
@@ -252,12 +264,11 @@ namespace LAPxv8
                 string json = File.ReadAllText(configFilePath);
                 var config = JsonConvert.DeserializeObject<JObject>(json);
                 TitleFormat = config["TitleFormat"]?.ToString() ?? "";
-                SelectedGroupId = config["SelectedGroupId"]?.ToString();
-                SelectedGroupName = config["SelectedGroupName"]?.ToString();
+                SelectedGroupId = config["SelectedGroupId"]?.ToString() ?? "";
+                SelectedGroupName = config["SelectedGroupName"]?.ToString() ?? "";
 
                 titleFormatBox.Text = TitleFormat;
 
-                // 🔥 Ensure the saved default group is displayed on startup
                 if (!string.IsNullOrEmpty(SelectedGroupName))
                 {
                     defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
@@ -851,9 +862,12 @@ namespace LAPxv8
                     unitMappings = config["UnitMappings"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
 
                     unitMappingList.Items.Clear();
+                    LogManager.AppendLog($"✅ FormAutomationConfigs: Loaded {unitMappings.Count} unit mappings.");
+
                     foreach (var mapping in unitMappings)
                     {
                         unitMappingList.Items.Add($"{mapping.Key} → {mapping.Value}");
+                        LogManager.AppendLog($"🔹 Unit Mapping: {mapping.Key} -> {mapping.Value}");
                     }
 
                     LogManager.AppendLog($"✅ Loaded {unitMappings.Count} unit mappings from file.");
@@ -864,6 +878,26 @@ namespace LAPxv8
                 LogManager.AppendLog($"❌ ERROR loading unit mappings: {ex.Message}");
             }
         }
+        public static Dictionary<string, string> GetUnitMappings()
+        {
+            try
+            {
+                string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "unit_mappings.json");
+
+                if (File.Exists(configFilePath))
+                {
+                    string json = File.ReadAllText(configFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+                    return config["UnitMappings"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR retrieving unit mappings: {ex.Message}");
+            }
+            return new Dictionary<string, string>(); // Return empty if failed
+        }
+
 
     }
 

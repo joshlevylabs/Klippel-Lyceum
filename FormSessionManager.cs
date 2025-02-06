@@ -1528,9 +1528,12 @@ namespace LAPxv8
                 MessageBox.Show("No data available to upload.", "Data Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 return;
             }
+            // Retrieve unit mappings from FormAutomationConfigs.cs
+            Dictionary<string, string> unitMappings = FormAutomationConfigs.GetUnitMappings();
+            LogManager.AppendLog($"✅ Retrieved {unitMappings.Count} unit mappings.");
 
             // Instantiate your upload form and pass the necessary data
-            FormLyceumDataUpload uploadForm = new FormLyceumDataUpload(accessToken, refreshToken, selectedSessionTitle, decryptedData);
+            FormLyceumDataUpload uploadForm = new FormLyceumDataUpload(accessToken, refreshToken, selectedSessionTitle, decryptedData, unitMappings);
             uploadForm.Show();
         }
         // Define classes to deserialize JSON data

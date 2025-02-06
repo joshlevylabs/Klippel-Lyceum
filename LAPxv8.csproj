@@ -4,7 +4,7 @@
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>LAPxv8</RootNamespace>
-    <AssemblyName>LAPxv8</AssemblyName>
+    <AssemblyName>LAPxv8.0.1</AssemblyName>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
     <LangVersion>8.0</LangVersion>
@@ -54,6 +54,7 @@
     <Compile Include="Cryptography.cs" />
     <Compile Include="Form1.cs" />
     <Compile Include="Form1.Designer.cs" />
+    <Compile Include="FormAboutLAPx.cs.cs" />
     <Compile Include="FormAPLimitEditor.cs" />
     <Compile Include="FormAPLimitEditor.Designer.cs" />
     <Compile Include="FormAudioPrecision8.cs" />

@@ -16,6 +16,7 @@ using System.Net.Http;
 using System;
 using static LAPxv8.FormAudioPrecision8;
 using Newtonsoft.Json;
+using ThirdParty.Json.LitJson;
 
 namespace LAPxv8
 {
@@ -27,11 +28,12 @@ namespace LAPxv8
         private string sessionData;
         private static readonly HttpClient client = new HttpClient(); // HttpClient instance
         private Dictionary<string, JObject> unitDetails = new Dictionary<string, JObject>();
+        private string unitMappingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "unit_mappings.json");
         private Dictionary<string, string> unitMappings = new Dictionary<string, string>();
         private string savedGroupId;
         private string savedGroupName;
 
-        public FormLyceumDataUpload(string accessToken, string refreshToken, string sessionTitle, string sessionData)
+        public FormLyceumDataUpload(string accessToken, string refreshToken, string sessionTitle, string sessionData, Dictionary<string, string> unitMappings)
         {
             LogManager.AppendLog($"📂 FormLyceumDataUpload initialized. Session Title: {sessionTitle}");
 
@@ -40,6 +42,11 @@ namespace LAPxv8
             this.refreshToken = refreshToken;
             this.sessionTitle = sessionTitle;
             this.sessionData = sessionData;
+            this.unitMappings = unitMappings;  // Store unit mappings.
+
+            LogManager.AppendLog($"✅ Received {unitMappings.Count} unit mappings: {string.Join(", ", unitMappings.Select(kvp => $"{kvp.Key}: {kvp.Value}"))}");
+
+            LoadUnitMappings();
 
             // Start async initialization
             InitializeAsync(); // Ensure this is the only place it's called
@@ -51,11 +58,16 @@ namespace LAPxv8
                 return;
 
             LogManager.AppendLog("🔄 Initializing upload form asynchronously...");
+            string jsonPath = GetJsonFilePath();
+
+            LogManager.AppendLog($"📂 Saving session data to temp.json at: {jsonPath}");
             await Task.Run(() => SaveDataToFile());
+
+            LogManager.AppendLog("📄 Saved initial temp.json file. Checking file content...");
+            LogManager.AppendLog($"🔍 temp.json content (First 1500 characters): {File.ReadAllText(jsonPath).Substring(0, 1500)}");
+
             await FetchAWSCredentials();
         }
-
-
 
         private string GetJsonFilePath()
         {
@@ -78,7 +90,7 @@ namespace LAPxv8
 
                 // Log first 300 characters of saved data for debugging
                 string fileContents = File.ReadAllText(filePath);
-                LogManager.AppendLog($"🔍 First 300 characters of saved temp.json: {fileContents.Substring(0, Math.Min(300, fileContents.Length))}");
+                LogManager.AppendLog($"🔍 First 1500 characters of saved temp.json: {fileContents.Substring(0, Math.Min(1500, fileContents.Length))}");
             }
             catch (Exception ex)
             {
@@ -100,6 +112,10 @@ namespace LAPxv8
             {
                 LogManager.AppendLog("📡 Fetching AWS credentials...");
 
+                string jsonPath = GetJsonFilePath();
+                LogManager.AppendLog($"📂 Checking temp.json before AWS fetch: {jsonPath}");
+                LogManager.AppendLog($"📄 temp.json content before AWS fetch (First 1500 characters): {File.ReadAllText(jsonPath).Substring(0, 1500)}");
+
                 string url = "https://api.thelyceum.io/api/account/get_aws_token/";
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
@@ -119,9 +135,6 @@ namespace LAPxv8
                 }
 
                 LogManager.AppendLog("✅ Successfully received AWS credentials response.");
-
-                // 🛑 Log Full AWS Response for Debugging
-                LogManager.AppendLog($"🔍 Full AWS Response: {responseContent}");
 
                 JObject awsTokenData;
                 try
@@ -148,7 +161,6 @@ namespace LAPxv8
                 string secretAccessKey = awsTokenData["Credentials"]["SecretAccessKey"].ToString();
                 string sessionToken = awsTokenData["Credentials"]["SessionToken"].ToString();
 
-                // 🔹 Check if credentials are empty or null
                 if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey) || string.IsNullOrEmpty(sessionToken))
                 {
                     LogManager.AppendLog("❌ ERROR: AWS credentials contain null or empty values.");
@@ -167,8 +179,12 @@ namespace LAPxv8
                     ModifyJsonData();
                     await UpdateDescriptorsWithUUIDs();
                     await ShowGroupSelectionForm();
+
+                    // 🛑 Ensure ProcessCheckedData runs first
                     await ProcessCheckedData();
                     RemoveCheckedData();
+
+                    LogManager.AppendLog("✅ ProcessCheckedData completed. Now applying unit mappings.");
 
                     string filePath = GetJsonFilePath();
                     string bucketName = "lyceum-prod";
@@ -176,6 +192,14 @@ namespace LAPxv8
 
                     await FetchAndStoreUnitDetails();
                     await HandleUnmatchedUnits();
+
+                    // ✅ Ensure `ApplyUnitMappings` runs **after** checked data processing
+                    JObject jsonData = JObject.Parse(File.ReadAllText(jsonPath));
+
+                    LogManager.AppendLog("🔄 Running ApplyUnitMappings after ProcessCheckedData...");
+                    ApplyUnitMappings(jsonData);
+                    File.WriteAllText(jsonPath, jsonData.ToString(Newtonsoft.Json.Formatting.Indented));
+
                     ReplaceUnitsInJson();
 
                     await UploadFileToS3(filePath, bucketName, accessKeyId, secretAccessKey, sessionToken, "us-west-1");
@@ -184,6 +208,8 @@ namespace LAPxv8
                 {
                     LogManager.AppendLog("❌ No project name provided. Cancelling operation.");
                 }
+
+                LogManager.AppendLog($"📄 temp.json content after all modifications (First 1000 characters): {File.ReadAllText(jsonPath).Substring(0, 1000)}");
             }
             catch (Exception ex)
             {
@@ -282,20 +308,22 @@ namespace LAPxv8
                 // ✅ Modify JSON safely
                 jsonData["ModifiedTime"] = DateTime.UtcNow.ToString("o");
 
+                // 🔄 Apply unit mappings to JSON data
+                ApplyUnitMappings(jsonData);
+
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(GetJsonFilePath(), sessionData);
 
                 LogManager.AppendLog("✅ ModifyJsonData completed successfully.");
 
                 string updatedJson = File.ReadAllText(GetJsonFilePath());
-                LogManager.AppendLog($"🔍 First 300 characters after modification: {updatedJson.Substring(0, Math.Min(300, updatedJson.Length))}");
+                LogManager.AppendLog($"🔍 First 1000 characters after modification: {updatedJson.Substring(0, Math.Min(1000, updatedJson.Length))}");
             }
             catch (Exception ex)
             {
                 LogManager.AppendLog($"❌ ERROR in ModifyJsonData: {ex.Message}");
             }
         }
-
         private async Task UpdateDescriptorsWithUUIDs()
         {
             try
@@ -698,8 +726,6 @@ namespace LAPxv8
         {
             return "Measurement"; // Automatically select "Measurement" without user input
         }
-
-
         private JArray ProcessCheckedDataCore(JArray checkedData, string dataType, string deviceLabel)
         {
             LogManager.AppendLog("🔄 Processing checked data core...");
@@ -760,7 +786,6 @@ namespace LAPxv8
             LogManager.AppendLog($"✅ Result object created successfully for {resultName}");
             return newResult;
         }
-
         private void PopulateUnitsAndData(JObject result, JObject newResult, string deviceLabel)
         {
             // Populate Units
@@ -872,12 +897,16 @@ namespace LAPxv8
                 var jsonData = JObject.Parse(sessionData);
                 jsonData["ProcessedCheckedData"] = processedData;
                 sessionData = jsonData.ToString(Newtonsoft.Json.Formatting.Indented);
-                File.WriteAllText(GetJsonFilePath(), sessionData);
+                string jsonPath = GetJsonFilePath();
 
-                LogManager.AppendLog("🔍 Fetching and logging unit metadata...");
-                await FetchAndLogUnitMetadata();
+                LogManager.AppendLog($"💾 Writing updated session data to temp.json at {jsonPath}...");
+                File.WriteAllText(jsonPath, sessionData);
+
+                LogManager.AppendLog("🔍 Verifying temp.json content after update...");
+                LogManager.AppendLog($"📄 temp.json content after update (First 1000 characters): {File.ReadAllText(jsonPath).Substring(0, 1000)}");
 
                 LogManager.AppendLog("✅ Checked data processed, units logged, and saved to file.");
+                await FetchAndLogUnitMetadata();
             }
             catch (Exception ex)
             {
@@ -1018,6 +1047,133 @@ namespace LAPxv8
                     unitDetails[combinedKey] = unit;
             }
         }
+        private void LoadUnitMappings()
+        {
+            try
+            {
+                if (File.Exists(unitMappingsFilePath))
+                {
+                    string json = File.ReadAllText(unitMappingsFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+                    unitMappings = config["UnitMappings"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
+
+                    LogManager.AppendLog($"✅ Loaded {unitMappings.Count} unit mappings: {string.Join(", ", unitMappings.Select(kvp => $"{kvp.Key}: {kvp.Value}"))}");
+                }
+                else
+                {
+                    LogManager.AppendLog("⚠ WARNING: Unit mappings file not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR loading unit mappings: {ex.Message}");
+            }
+        }
+        private void ApplyUnitMappings(JObject jsonData)
+        {
+            LogManager.AppendLog("🔄 Entering ApplyUnitMappings...");
+
+            if (jsonData == null)
+            {
+                LogManager.AppendLog("❌ ERROR: jsonData is null in ApplyUnitMappings. Exiting function.");
+                return;
+            }
+
+            if (!jsonData.ContainsKey("CheckedData"))
+            {
+                LogManager.AppendLog("⚠ WARNING: 'CheckedData' key is missing in JSON data. Skipping unit mappings.");
+                return;
+            }
+
+            JArray processedData = jsonData["CheckedData"] as JArray;
+            if (processedData == null || processedData.Count == 0)
+            {
+                LogManager.AppendLog("⚠ WARNING: 'CheckedData' is empty. No units to process.");
+                return;
+            }
+
+            HashSet<string> unmatchedUnits = new HashSet<string>();
+            Dictionary<string, string> replacedUnits = new Dictionary<string, string>();
+
+            // Log all available unit mappings
+            LogManager.AppendLog($"✅ Available unit mappings: {string.Join(", ", unitMappings.Select(kvp => $"{kvp.Key} -> {kvp.Value}"))}");
+
+            foreach (JObject item in processedData)
+            {
+                string jsonSnippet = item.ToString(Newtonsoft.Json.Formatting.None);
+                LogManager.AppendLog($"🔍 Processing JSON item (first 300 chars): {jsonSnippet.Substring(0, Math.Min(300, jsonSnippet.Length))}");
+
+                // Navigate through the JSON structure to find Measurements -> Results where XUnit, YUnit, MeterUnit exist
+                if (item.ContainsKey("Measurements") && item["Measurements"] is JArray measurementsArray)
+                {
+                    foreach (JObject measurement in measurementsArray)
+                    {
+                        if (measurement.ContainsKey("Results") && measurement["Results"] is JArray resultsArray)
+                        {
+                            foreach (JObject result in resultsArray)
+                            {
+                                ReplaceUnitWithMapping(result, "XUnit", unmatchedUnits, replacedUnits);
+                                ReplaceUnitWithMapping(result, "YUnit", unmatchedUnits, replacedUnits);
+                                ReplaceUnitWithMapping(result, "MeterUnit", unmatchedUnits, replacedUnits);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Log unmatched units
+            if (unmatchedUnits.Count > 0)
+            {
+                LogManager.AppendLog($"⚠ WARNING: Unmatched units found: {string.Join(", ", unmatchedUnits)}");
+            }
+            else
+            {
+                LogManager.AppendLog("✅ All units successfully mapped.");
+            }
+
+            // Log replaced units
+            if (replacedUnits.Count > 0)
+            {
+                LogManager.AppendLog($"✅ Successfully replaced units: {string.Join(", ", replacedUnits.Select(kvp => $"{kvp.Key} -> {kvp.Value}"))}");
+            }
+            else
+            {
+                LogManager.AppendLog("⚠ WARNING: No unit replacements were made.");
+            }
+
+            LogManager.AppendLog("✅ ApplyUnitMappings completed successfully.");
+        }
+
+        private void ReplaceUnitWithMapping(JObject result, string unitKey, HashSet<string> unmatchedUnits, Dictionary<string, string> replacedUnits)
+        {
+            if (!result.ContainsKey(unitKey))
+            {
+                LogManager.AppendLog($"⚠ WARNING: '{unitKey}' key missing in result. Skipping...");
+                return;
+            }
+
+            string originalUnit = result[unitKey]?.ToString();
+            if (string.IsNullOrEmpty(originalUnit))
+            {
+                LogManager.AppendLog($"⚠ WARNING: '{unitKey}' is empty. Skipping...");
+                return;
+            }
+
+            LogManager.AppendLog($"🔍 Checking mapping for {unitKey}: {originalUnit}");
+
+            if (unitMappings.TryGetValue(originalUnit, out string mappedUnit))
+            {
+                result[unitKey] = mappedUnit;
+                replacedUnits[originalUnit] = mappedUnit;
+                LogManager.AppendLog($"✅ Replaced {unitKey}: {originalUnit} -> {mappedUnit}");
+            }
+            else
+            {
+                unmatchedUnits.Add(originalUnit);
+                LogManager.AppendLog($"⚠ WARNING: No mapping found for {unitKey}: {originalUnit}");
+            }
+        }
+
         private void ReplaceUnitsInJson()
         {
             var jsonData = JObject.Parse(sessionData);
@@ -1034,25 +1190,6 @@ namespace LAPxv8
                         ReplaceUnitWithDetails(units, "YUnit");
                         ReplaceUnitWithDetails(units, "MeterUnit");
                     }
-
-                    // Also update the "Units" section in the "Elements" portion of the "Properties" section
-                    JObject properties = item["Properties"] as JObject;
-                    if (properties != null && properties["Elements"] is JArray elements)
-                    {
-                        foreach (JObject element in elements)
-                        {
-                            JObject elementUnits = new JObject();
-                            if (units != null)
-                            {
-                                foreach (var unit in units.Properties())
-                                {
-                                    // Assign only the UUID to the Units section of the elements
-                                    elementUnits[unit.Name] = unit.Value["value"].ToString();
-                                }
-                            }
-                            element["Units"] = elementUnits;
-                        }
-                    }
                 }
             }
 
@@ -1060,7 +1197,6 @@ namespace LAPxv8
             File.WriteAllText(GetJsonFilePath(), sessionData);
             LogManager.AppendLog("Units in JSON data replaced with detailed information and copied to Elements section.");
         }
-
         private void ReplaceUnitWithDetails(JObject units, string unitKey)
         {
             string unitValue = units[unitKey]?.ToString();
@@ -1073,7 +1209,7 @@ namespace LAPxv8
 
                 if (unitDetails.TryGetValue(unitValue, out JObject unitDetail))
                 {
-                    units[unitKey] = unitDetail; // Replace with detailed unit information
+                    units[unitKey] = unitDetail;
                     LogManager.AppendLog($"Unit {unitKey} replaced with detailed information.");
                 }
                 else
@@ -1082,7 +1218,6 @@ namespace LAPxv8
                 }
             }
         }
-
         private async Task HandleUnmatchedUnits()
         {
             var unmatchedUnits = GetUnmatchedUnits();

@@ -53,8 +53,6 @@ namespace LAPxv8
             this.Padding = new Padding(1, 30, 1, 1);
             this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
 
-
-
             if (showMenuStrip) // Only add menu if allowed
             {
                 menuStrip = new MenuStrip
@@ -65,18 +63,13 @@ namespace LAPxv8
                     Padding = new Padding(0, 0, 0, 0)
                 };
 
+                // File menu with Logout option only
                 var fileMenu = new ToolStripMenuItem("File");
-
-                var automationConfigMenuItem = new ToolStripMenuItem("Automation Configs");
-                automationConfigMenuItem.Click += AutomationConfigMenuItem_Click;
-                fileMenu.DropDownItems.Add(automationConfigMenuItem);
-
-                var logoutMenuItem = new ToolStripMenuItem("Logout"); // Changed from Home to Logout
+                var logoutMenuItem = new ToolStripMenuItem("Logout");
                 logoutMenuItem.Click += LogoutMenuItem_Click;
                 fileMenu.DropDownItems.Add(logoutMenuItem);
                 menuStrip.Items.Add(fileMenu);
 
-                this.MainMenuStrip = menuStrip;
                 this.Controls.Add(menuStrip);
             }
 
@@ -88,27 +81,7 @@ namespace LAPxv8
             this.MouseMove += BaseForm_MouseMove;
             this.MouseUp += BaseForm_MouseUp;
         }
-        private void AutomationConfigMenuItem_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    LogManager.AppendLog("❌ ERROR: accessToken is null in BaseForm.");
-                    MessageBox.Show("Access token is missing. Please log in again.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                LogManager.AppendLog($"✅ Opening FormAutomationConfigs with accessToken: {accessToken.Substring(0, Math.Min(10, accessToken.Length))}...");
-                var automationConfigForm = new FormAutomationConfigs(accessToken);
-                automationConfigForm.Show();
-            }
-            catch (Exception ex)
-            {
-                LogManager.AppendLog($"❌ ERROR Opening FormAutomationConfigs: {ex.Message}");
-            }
-        }
-
+        
         private void LogoutMenuItem_Click(object sender, EventArgs e)
         {
             // Close all open forms
@@ -121,8 +94,6 @@ namespace LAPxv8
             Application.ExitThread();
             System.Diagnostics.Process.Start(Application.ExecutablePath);
         }
-
-
         protected virtual void AddCustomMenuItems()
         {
             // This method is intended to be overridden in derived forms

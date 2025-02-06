@@ -48,7 +48,8 @@ namespace LAPxv8
         private bool xStartValid, xEndValid, yStartValid, yEndValid;
 
         public List<ProjectSession> sessionList = new List<ProjectSession>();
-        public Dictionary<string, string> globalProperties = new Dictionary<string, string>(); // Add this to FormAudioPrecision8.cs
+        public Dictionary<string, string> globalProperties = new Dictionary<string, string>(); 
+
 
 
         // This should be the only declaration of SessionDataHandler
@@ -84,6 +85,11 @@ namespace LAPxv8
                 baseFormFileMenuItems.Add(item);
             }
             fileMenu.DropDownItems.Clear(); // Remove all existing items temporarily
+
+            // Add the missing "Automation Configs" menu item
+            ToolStripMenuItem automationConfigMenuItem = new ToolStripMenuItem("Automation Configs");
+            automationConfigMenuItem.Click += AutomationConfigMenuItem_Click;
+            fileMenu.DropDownItems.Add(automationConfigMenuItem);
 
             // Add new FormAudioPrecision8-specific items first
             ToolStripMenuItem limitEditorMenuItem = new ToolStripMenuItem("Limit Editor");
@@ -145,12 +151,34 @@ namespace LAPxv8
             downloadMenu.DropDownItems.Add(downloadLimitsMenuItem);
 
             menuStrip.Items.Add(downloadMenu);
+
+            // Help menu
+            var helpMenu = new ToolStripMenuItem("Help");
+
+            var aboutMenuItem = new ToolStripMenuItem("About");
+            aboutMenuItem.Click += AboutMenuItem_Click;
+            helpMenu.DropDownItems.Add(aboutMenuItem);
+
+            var contactMenuItem = new ToolStripMenuItem("Contact");
+            contactMenuItem.Click += ContactMenuItem_Click;
+            helpMenu.DropDownItems.Add(contactMenuItem);
+
+            menuStrip.Items.Add(helpMenu);
+        }
+        private void AboutMenuItem_Click(object sender, EventArgs e)
+        {
+            FormAboutLAPx aboutForm = new FormAboutLAPx();
+            aboutForm.ShowDialog();
         }
 
+        private void ContactMenuItem_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("For support, please contact josh@thelyceum.io.", "Contact", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+        }
         private void InitializeComponents()
         {
             // Set Form Properties
-            this.Text = "Audio Precision Control";
+            this.Text = "LAPx - Lyceum + APx500 Interface version 1.2";
             this.Font = new Font("Segoe UI", 10);
             this.BackColor = Color.FromArgb(45, 45, 45); // Dark Mode background
             this.Size = new Size(1800, 800);
@@ -473,7 +501,7 @@ namespace LAPxv8
             this.ClientSize = new System.Drawing.Size(1850, 850);
             this.MinimumSize = new System.Drawing.Size(1850, 850); 
             this.Name = "FormAudioPrecision8";
-            this.Text = "Audio Precision Control";
+            this.Text = "LAPx - Lyceum + APx500 Interface version 1.2";
             this.BackColor = Color.FromArgb(45, 45, 45);
             this.ForeColor = Color.White;
 
@@ -543,6 +571,26 @@ namespace LAPxv8
             }
 
             return properties;
+        }
+        private void AutomationConfigMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    LogManager.AppendLog("❌ ERROR: accessToken is null in BaseForm.");
+                    MessageBox.Show("Access token is missing. Please log in again.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
+                }
+
+                LogManager.AppendLog($"✅ Opening FormAutomationConfigs with accessToken: {accessToken.Substring(0, Math.Min(10, accessToken.Length))}...");
+                var automationConfigForm = new FormAutomationConfigs(accessToken);
+                automationConfigForm.Show();
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR Opening FormAutomationConfigs: {ex.Message}");
+            }
         }
         private void LimitEditorButton_Click(object sender, EventArgs e)
         {
@@ -1701,7 +1749,7 @@ namespace LAPxv8
                 string sessionFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lyceum");
                 string sessionFilePath = null;
 
-                for (int attempt = 0; attempt < 5; attempt++)
+                for (int attempt = 0; attempt < 10; attempt++)
                 {
                     await Task.Delay(1000);
                     sessionFilePath = Directory.GetFiles(sessionFolder, "*.lyc")
@@ -1729,7 +1777,7 @@ namespace LAPxv8
                 }
 
                 LogManager.AppendLog($"✅ Raw session data read successfully. Length: {encryptedSessionData.Length} bytes");
-                LogManager.AppendLog($"🔍 First 300 characters of encrypted data: {encryptedSessionData.Substring(0, Math.Min(300, encryptedSessionData.Length))}");
+                LogManager.AppendLog($"🔍 First 1000 characters of encrypted data: {encryptedSessionData.Substring(0, Math.Min(1000, encryptedSessionData.Length))}");
 
                 // Step 4: Retrieve encryption key
                 string encryptionKey = Cryptography.GetOrCreateEncryptionKey();
@@ -1750,7 +1798,7 @@ namespace LAPxv8
                 }
 
                 LogManager.AppendLog($"✅ Decryption successful. Length: {decryptedSessionData.Length} bytes");
-                LogManager.AppendLog($"🔍 First 300 characters of decrypted JSON data: {decryptedSessionData.Substring(0, Math.Min(300, decryptedSessionData.Length))}");
+                LogManager.AppendLog($"🔍 First 1000 characters of decrypted JSON data: {decryptedSessionData.Substring(0, Math.Min(1000, decryptedSessionData.Length))}");
 
                 // Step 6: Parse JSON and validate structure
                 JObject jsonData;
@@ -1832,8 +1880,12 @@ namespace LAPxv8
                     correctFormatJson = jsonData; // Use as is if already correct
                 }
 
+                // Retrieve unit mappings from FormAutomationConfigs.cs
+                Dictionary<string, string> unitMappings = FormAutomationConfigs.GetUnitMappings();
+                LogManager.AppendLog($"✅ Retrieved {unitMappings.Count} unit mappings.");
+
                 // Pass corrected JSON to FormLyceumDataUpload
-                FormLyceumDataUpload dataUploadForm = new FormLyceumDataUpload(accessToken, refreshToken, sessionTitle, correctFormatJson.ToString());
+                FormLyceumDataUpload dataUploadForm = new FormLyceumDataUpload(accessToken, refreshToken, sessionTitle, correctFormatJson.ToString(), unitMappings);
                 dataUploadForm.ShowDialog();
 
                 // Step 10: Verify temp.json after processing
@@ -1841,7 +1893,7 @@ namespace LAPxv8
                 if (File.Exists(tempJsonFilePath))
                 {
                     string tempJsonAfterProcessing = File.ReadAllText(tempJsonFilePath);
-                    LogManager.AppendLog($"✅ temp.json after FormLyceumDataUpload processing. First 300 characters: {tempJsonAfterProcessing.Substring(0, Math.Min(300, tempJsonAfterProcessing.Length))}");
+                    LogManager.AppendLog($"✅ temp.json after FormLyceumDataUpload processing. First 1000 characters: {tempJsonAfterProcessing.Substring(0, Math.Min(1000, tempJsonAfterProcessing.Length))}");
                 }
                 else
                 {
@@ -2154,9 +2206,11 @@ namespace LAPxv8
 
             string adminPass = adminPassUser ?? adminPassMachine; // Prefer User-level if both exist
 
+            // Debugging output to console
             Console.WriteLine($"Environment Variable LYCEUM_ADMIN_PASS: {(adminPass != null ? "Found" : "Not Found")}");
             Console.WriteLine($"LYCEUM_ADMIN_PASS Value: {adminPass}");
 
+            // Check if the environment variable matches the required password
             if (adminPass == "LyceumAdmin2025")
             {
                 LogManager.ShowLogWindow();
