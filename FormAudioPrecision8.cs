@@ -525,6 +525,7 @@ namespace LAPxv8
                 int nHeightEllipse // height of ellipse
             );
         }
+
         private void GetCheckedDataButton_Click(object sender, EventArgs e)
         {
             LogManager.AppendLog("Get Checked Data button clicked.");
@@ -2125,10 +2126,43 @@ namespace LAPxv8
             MessageBox.Show("Data has been downloaded successfully.");
         }
         private void RunScriptButton_Click(object sender, EventArgs e)
-{
-    RunAPscript runner = new RunAPscript(APx);
-    runner.RunScript();
-}
+        {
+            try
+            {
+                // Create an instance of RunAPscript
+                RunAPscript runner = new RunAPscript(APx);
+
+                // Pass 'this' (current FormAudioPrecision8 instance) and set checkboxes manually
+                runner.RunScript(
+                    this,  // Pass current instance
+                    true,  // Extract Data (Modify based on UI checkboxes if available)
+                    true,  // Save Session
+                    true   // Upload to Lyceum
+                );
+
+                LogManager.AppendLog("✅ APx script executed successfully.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog($"❌ ERROR running APx script: {ex.Message}");
+            }
+        }
+
+        public void RunGetCheckedData()
+        {
+            GetCheckedDataButton_Click(null, EventArgs.Empty);
+        }
+
+        public void RunCreateSession()
+        {
+            CreateSessionMenuItem_Click(null, EventArgs.Empty);
+        }
+
+        public void RunUploadToLyceum()
+        {
+            UploadToLyceumMenuItem_Click(null, EventArgs.Empty);
+        }
 
         public TextBox GetLogTextBox()
         {

@@ -118,10 +118,10 @@ namespace LAPxv8
             {
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White,
-                AutoScroll = true // ✅ Enables scrolling when needed
+                AutoScroll = true
             };
 
-            // ✅ Panel to contain all elements (buttons & input fields)
+            // ✅ Panel to contain all elements (buttons, checkboxes, & input fields)
             Panel runScriptPanel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -134,19 +134,100 @@ namespace LAPxv8
             inputPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 400, // Set an initial height
+                Height = 400,
                 AutoScroll = true,
                 BackColor = Color.FromArgb(50, 50, 50),
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // ✅ Panel to hold buttons side by side
-            Panel buttonPanel = new Panel
+            // ✅ Panel to hold checkboxes & buttons
+            Panel checkboxPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 60, // Just enough height for the buttons
-                BackColor = Color.FromArgb(45, 45, 48)
+                Height = 150, // Adjusted height to accommodate buttons
+                BackColor = Color.FromArgb(45, 45, 48),
+                Padding = new Padding(10)
             };
+
+            // ✅ Checkbox 1: Extract Data
+            CheckBox chkExtractData = new CheckBox
+            {
+                Text = "Automatically extract data after sequence is complete.",
+                Left = 10,
+                Top = 10,
+                ForeColor = Color.White,
+                AutoSize = true
+            };
+
+            // ✅ Checkbox 2: Save Session (Dependent on Checkbox 1)
+            CheckBox chkSaveSession = new CheckBox
+            {
+                Text = "Automatically save data as session.",
+                Left = 10,
+                Top = 40,
+                ForeColor = Color.White,
+                AutoSize = true,
+                Enabled = false
+            };
+
+            // ✅ Checkbox 3: Upload to Lyceum (Dependent on Checkbox 1 & 2)
+            CheckBox chkUploadToLyceum = new CheckBox
+            {
+                Text = "Automatically upload data to Lyceum.",
+                Left = 10,
+                Top = 70,
+                ForeColor = Color.White,
+                AutoSize = true,
+                Enabled = false
+            };
+
+            // ✅ Checkbox Logic - Enforce Dependencies
+            chkExtractData.CheckedChanged += (sender, e) =>
+            {
+                if (!chkExtractData.Checked)
+                {
+                    chkSaveSession.Checked = false;
+                    chkSaveSession.Enabled = false;
+                    chkUploadToLyceum.Checked = false;
+                    chkUploadToLyceum.Enabled = false;
+                }
+                else
+                {
+                    chkSaveSession.Enabled = true;
+                }
+            };
+
+            chkSaveSession.CheckedChanged += (sender, e) =>
+            {
+                if (chkSaveSession.Checked && !chkExtractData.Checked)
+                {
+                    chkExtractData.Checked = true; // Automatically check Extract Data
+                }
+
+                if (!chkSaveSession.Checked)
+                {
+                    chkUploadToLyceum.Checked = false;
+                    chkUploadToLyceum.Enabled = false;
+                }
+                else
+                {
+                    chkUploadToLyceum.Enabled = true;
+                }
+            };
+
+            chkUploadToLyceum.CheckedChanged += (sender, e) =>
+            {
+                if (chkUploadToLyceum.Checked && (!chkExtractData.Checked || !chkSaveSession.Checked))
+                {
+                    chkExtractData.Checked = true;
+                    chkSaveSession.Checked = true; // Automatically check required dependencies
+                }
+            };
+
+            // ✅ Adjust Checkbox Positions
+            chkExtractData.Location = new Point(10, 10);
+            chkSaveSession.Location = new Point(10, chkExtractData.Bottom + 10);
+            chkUploadToLyceum.Location = new Point(10, chkSaveSession.Bottom + 10);
 
             // ✅ Button: Log Pre-Sequence Steps
             Button logPreSequenceButton = new Button
@@ -174,15 +255,19 @@ namespace LAPxv8
             saveDefaultValuesButton.FlatAppearance.BorderSize = 1;
             saveDefaultValuesButton.Click += (sender, e) => SaveUpdatedDefaultValues();
 
-            // ✅ Layout: Side by side
-            logPreSequenceButton.Location = new Point(10, 10);
-            saveDefaultValuesButton.Location = new Point(logPreSequenceButton.Right + 20, 10);
-            buttonPanel.Controls.Add(logPreSequenceButton);
-            buttonPanel.Controls.Add(saveDefaultValuesButton);
+            // ✅ Adjust button positioning to prevent overlap
+            logPreSequenceButton.Location = new Point(10, chkUploadToLyceum.Bottom + 20);
+            saveDefaultValuesButton.Location = new Point(logPreSequenceButton.Right + 20, chkUploadToLyceum.Bottom + 20);
+
+            checkboxPanel.Controls.Add(chkExtractData);
+            checkboxPanel.Controls.Add(chkSaveSession);
+            checkboxPanel.Controls.Add(chkUploadToLyceum);
+            checkboxPanel.Controls.Add(logPreSequenceButton);
+            checkboxPanel.Controls.Add(saveDefaultValuesButton);
 
             // ✅ Add components to the panel in the correct order
             runScriptPanel.Controls.Add(inputPanel);
-            runScriptPanel.Controls.Add(buttonPanel);
+            runScriptPanel.Controls.Add(checkboxPanel);
 
             // ✅ Add the panel to the tab
             runScriptTab.Controls.Add(runScriptPanel);

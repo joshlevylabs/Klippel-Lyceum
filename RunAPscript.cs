@@ -16,21 +16,44 @@ namespace LAPxv8
             APx = apxInstance ?? throw new ArgumentNullException(nameof(apxInstance));
         }
 
-        public void RunScript()
+        public void RunScript(FormAudioPrecision8 formAP8, bool extractData, bool saveSession, bool uploadToLyceum)
         {
             try
             {
                 LogManager.AppendLog("🚀 Running APx500 script...");
                 APx.Sequence.Run();
-                MessageBox.Show("Sequence run successfully.");
                 LogManager.AppendLog("✅ APx500 script executed successfully.");
+
+                // Step 1: Run GetCheckedDataButton_Click if extractData is true
+                if (extractData)
+                {
+                    LogManager.AppendLog("🔄 Running 'GetCheckedDataButton_Click'...");
+                    formAP8.RunGetCheckedData();
+                }
+
+                // Step 2: If saveSession is true, run CreateSessionMenuItem_Click
+                if (saveSession)
+                {
+                    LogManager.AppendLog("💾 Running 'CreateSessionMenuItem_Click'...");
+                    formAP8.RunCreateSession();
+                }
+
+                // Step 3: If uploadToLyceum is true, run UploadToLyceumMenuItem_Click
+                if (uploadToLyceum)
+                {
+                    LogManager.AppendLog("📤 Running 'UploadToLyceumMenuItem_Click'...");
+                    formAP8.RunUploadToLyceum();
+                }
+
+                MessageBox.Show("Sequence completed successfully!", "Success", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"An error occurred while running the sequence: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                LogManager.AppendLog($"❌ ERROR running APx500 script: {ex.Message}");
+                MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                LogManager.AppendLog($"❌ ERROR running script: {ex.Message}");
             }
         }
+
         public Dictionary<string, string> GetPromptStepInputs()
         {
             Dictionary<string, string> inputData = new Dictionary<string, string>();
