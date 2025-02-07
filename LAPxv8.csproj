@@ -4,7 +4,7 @@
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>LAPxv8</RootNamespace>
-    <AssemblyName>LAPxv8.0.1</AssemblyName>
+    <AssemblyName>LAPxv8.0.2</AssemblyName>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
     <LangVersion>8.0</LangVersion>
@@ -78,6 +78,7 @@
     <Compile Include="FormTestResultsGrid.Designer.cs" />
     <Compile Include="LoadLimitsv8.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="RunAPscript.cs" />
   </ItemGroup>
 
   <!-- Embedded Resources -->

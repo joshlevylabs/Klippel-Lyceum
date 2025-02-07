@@ -9,6 +9,7 @@ using System.IO;
 using static LAPxv8.FormAudioPrecision8;
 using System.Net.Http;
 using System.Threading.Tasks;
+using AudioPrecision.API;
 
 namespace LAPxv8
 {
@@ -33,8 +34,11 @@ namespace LAPxv8
         private List<string> lyceumUnitList = new List<string>(); // ✅ Stores fetched units for filtering
         private string unitMappingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "unit_mappings.json");
 
+        private RunAPscript runAPscript;
+        private Dictionary<string, TextBox> inputValueBoxes; // Stores textboxes for editing default values
+        private Panel inputPanel;
 
-        public FormAutomationConfigs(string accessToken, Dictionary<string, string> globalProperties = null)
+        public FormAutomationConfigs(string accessToken, APx500 apxInstance, Dictionary<string, string> globalProperties = null)
     : base(false, BaseForm.GetAccessToken())
         {
             try
@@ -47,6 +51,8 @@ namespace LAPxv8
                 this.globalProperties = globalProperties ?? GetGlobalPropertiesFromParent();
                 this.lyceumGroups = new List<JObject>();
                 this.configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "config.json");
+                
+                this.runAPscript = new RunAPscript(apxInstance); // ✅ Ensure this is set
 
                 // ✅ Increase the window size for better UI visibility
                 this.Size = new Size(800, 600);
@@ -107,13 +113,92 @@ namespace LAPxv8
             };
             unitMappingTab.Controls.Add(CreateUnitMappingsPanel());
 
+            // ✅ Run Script Tab
+            TabPage runScriptTab = new TabPage("Run Script")
+            {
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                AutoScroll = true // ✅ Enables scrolling when needed
+            };
+
+            // ✅ Panel to contain all elements (buttons & input fields)
+            Panel runScriptPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = Color.FromArgb(45, 45, 48),
+                Padding = new Padding(10)
+            };
+
+            // ✅ Panel to display input labels & default values dynamically
+            inputPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 400, // Set an initial height
+                AutoScroll = true,
+                BackColor = Color.FromArgb(50, 50, 50),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            // ✅ Panel to hold buttons side by side
+            Panel buttonPanel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 60, // Just enough height for the buttons
+                BackColor = Color.FromArgb(45, 45, 48)
+            };
+
+            // ✅ Button: Log Pre-Sequence Steps
+            Button logPreSequenceButton = new Button
+            {
+                Text = "Load Test Variables",
+                Width = 200,
+                Height = 40,
+                BackColor = Color.FromArgb(75, 110, 175),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            logPreSequenceButton.FlatAppearance.BorderSize = 1;
+            logPreSequenceButton.Click += (sender, e) => LogAndDisplayPreSequenceSteps();
+
+            // ✅ Button: Save Updated Values
+            Button saveDefaultValuesButton = new Button
+            {
+                Text = "Save Test Variables",
+                Width = 200,
+                Height = 40,
+                BackColor = Color.FromArgb(75, 175, 75),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            saveDefaultValuesButton.FlatAppearance.BorderSize = 1;
+            saveDefaultValuesButton.Click += (sender, e) => SaveUpdatedDefaultValues();
+
+            // ✅ Layout: Side by side
+            logPreSequenceButton.Location = new Point(10, 10);
+            saveDefaultValuesButton.Location = new Point(logPreSequenceButton.Right + 20, 10);
+            buttonPanel.Controls.Add(logPreSequenceButton);
+            buttonPanel.Controls.Add(saveDefaultValuesButton);
+
+            // ✅ Add components to the panel in the correct order
+            runScriptPanel.Controls.Add(inputPanel);
+            runScriptPanel.Controls.Add(buttonPanel);
+
+            // ✅ Add the panel to the tab
+            runScriptTab.Controls.Add(runScriptPanel);
+
+
             // ✅ Add all tabs to the tabControl
             tabControl.TabPages.Add(titleTab);
             tabControl.TabPages.Add(groupTab);
-            tabControl.TabPages.Add(unitMappingTab); // 🔥 This was missing!
+            tabControl.TabPages.Add(unitMappingTab);
+            tabControl.TabPages.Add(runScriptTab);
+
 
             // ✅ Add the tab control to the form
             Controls.Add(tabControl);
+
+
         }
 
         private Panel CreateTitleConfigurationPanel()
@@ -185,7 +270,7 @@ namespace LAPxv8
             {
                 string constructedTitle = GetFormattedTitle();
                 LogManager.AppendLog($"[DEBUG] Test Button - Constructed Title: {constructedTitle}");
-                MessageBox.Show($"Constructed Title: {constructedTitle}", "Title Preview", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Constructed Title: {constructedTitle}", "Title Preview", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
             };
 
             Button saveButton = new Button
@@ -205,7 +290,7 @@ namespace LAPxv8
                 TitleFormat = titleFormatBox.Text;
                 SaveTitleFormat();
                 LogManager.AppendLog($"[DEBUG] Saved Title Format: {TitleFormat}");
-                MessageBox.Show("Title format saved!", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Title format saved!", "Saved", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
             };
 
             panel.Controls.Add(label);
@@ -445,7 +530,7 @@ namespace LAPxv8
                     }
                     else
                     {
-                        MessageBox.Show("Please select a group first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("Please select a group first.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
                     }
                 };
 
@@ -533,7 +618,7 @@ namespace LAPxv8
                 if (groups == null || !groups.Any())
                 {
                     LogManager.AppendLog("⚠ WARNING: No Lyceum groups retrieved.");
-                    MessageBox.Show("No groups found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("No groups found.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -636,7 +721,7 @@ namespace LAPxv8
                 defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
                 defaultGroupLabel.ForeColor = Color.LimeGreen;
 
-                MessageBox.Show($"Group Selected: {SelectedGroupName}", "Group Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Group Selected: {SelectedGroupName}", "Group Selection", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -897,7 +982,96 @@ namespace LAPxv8
             }
             return new Dictionary<string, string>(); // Return empty if failed
         }
+        private void LogAndDisplayPreSequenceSteps()
+        {
+            try
+            {
+                if (runAPscript == null)
+                {
+                    MessageBox.Show("RunAPscript instance is null. Please restart the application.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
+                }
 
+                LogManager.AppendLog("📋 Logging and displaying Pre-Sequence Steps...");
+                inputPanel.Controls.Clear();
+                inputValueBoxes = new Dictionary<string, TextBox>();
+
+                // Retrieve all input labels and default values
+                var inputData = runAPscript.GetPromptStepInputs();
+
+                if (inputData.Count == 0)
+                {
+                    LogManager.AppendLog("⚠ No Inputs found.");
+                    MessageBox.Show("No inputs found in the Pre-Sequence steps.", "Info", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+                    return;
+                }
+
+                int yOffset = 10;
+                foreach (var entry in inputData)
+                {
+                    string inputLabel = entry.Key;
+                    string defaultValue = entry.Value;
+
+                    // ✅ Label: Input Name
+                    Label label = new Label
+                    {
+                        Text = inputLabel,
+                        Left = 10,
+                        Top = yOffset,
+                        Width = 300,
+                        ForeColor = Color.White
+                    };
+                    inputPanel.Controls.Add(label);
+
+                    // ✅ TextBox: Editable Default Value
+                    TextBox textBox = new TextBox
+                    {
+                        Left = 320,
+                        Top = yOffset - 3,
+                        Width = 200,
+                        BackColor = Color.FromArgb(60, 60, 60),
+                        ForeColor = Color.White,
+                        BorderStyle = BorderStyle.FixedSingle,
+                        Text = defaultValue
+                    };
+                    inputValueBoxes[inputLabel] = textBox;
+                    inputPanel.Controls.Add(textBox);
+
+                    yOffset += 35;
+                }
+
+                LogManager.AppendLog("✅ Inputs displayed successfully.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR displaying inputs: {ex.Message}");
+            }
+        }
+
+        private void SaveUpdatedDefaultValues()
+        {
+            try
+            {
+                if (runAPscript == null || inputValueBoxes == null)
+                {
+                    MessageBox.Show("Error: RunAPscript instance or input list is null.", "Error", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    return;
+                }
+
+                // ✅ Collect edited values
+                Dictionary<string, string> updatedValues = inputValueBoxes.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Text);
+
+                // ✅ Update values in APx
+                runAPscript.SetDefaultValues(updatedValues);
+                MessageBox.Show("Default values updated successfully!", "Success", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+
+                LogManager.AppendLog("✅ Default values updated successfully in APx.");
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR saving default values: {ex.Message}");
+            }
+        }
 
     }
 

@@ -108,6 +108,7 @@ namespace LAPxv8
             logWindowMenuItem.Click += LogWindowMenuItem_Click;
             fileMenu.DropDownItems.Add(logWindowMenuItem);
 
+
             // Re-add BaseForm's File menu items below the new ones
             foreach (ToolStripItem item in baseFormFileMenuItems)
             {
@@ -584,7 +585,7 @@ namespace LAPxv8
                 }
 
                 LogManager.AppendLog($"✅ Opening FormAutomationConfigs with accessToken: {accessToken.Substring(0, Math.Min(10, accessToken.Length))}...");
-                var automationConfigForm = new FormAutomationConfigs(accessToken);
+                var automationConfigForm = new FormAutomationConfigs(accessToken, APx, globalProperties);
                 automationConfigForm.Show();
             }
             catch (Exception ex)
@@ -2124,17 +2125,11 @@ namespace LAPxv8
             MessageBox.Show("Data has been downloaded successfully.");
         }
         private void RunScriptButton_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                APx.Sequence.Run();
-                MessageBox.Show("Sequence run successfully.");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"An error occurred while running the sequence: {ex.Message}");
-            }
-        }
+{
+    RunAPscript runner = new RunAPscript(APx);
+    runner.RunScript();
+}
+
         public TextBox GetLogTextBox()
         {
             return logTextBox;

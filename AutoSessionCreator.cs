@@ -19,6 +19,8 @@ namespace LAPxv8
         private string sessionFolder;
         public string SessionTitle { get; private set; } // Store session title
         private string configFilePath;
+        public string SessionTag { get; private set; } // Store session tag
+
 
         public AutoSessionCreator(FormAudioPrecision8 apxForm, string accessToken, string refreshToken, List<SignalPathData> checkedData, Dictionary<string, string> globalProperties)
         {
@@ -104,8 +106,13 @@ namespace LAPxv8
                 resolvedTitle = SanitizeFileName(resolvedTitle);
                 LogManager.AppendLog($"[DEBUG] AutoSessionCreator: Sanitized session title -> {resolvedTitle}");
 
+                // ✅ Prompt the user for a session tag
+                string sessionTag = PromptForSessionTag();
+                this.SessionTitle = resolvedTitle;
+                this.SessionTag = sessionTag;
+
                 // ✅ Save session
-                var sessionData = new { Title = resolvedTitle, GlobalProperties = globalProperties, CheckedData = checkedData };
+                var sessionData = new { Title = resolvedTitle, Tag = sessionTag, GlobalProperties = globalProperties, CheckedData = checkedData };
                 SaveSession(sessionData, resolvedTitle);
                 this.SessionTitle = resolvedTitle;
 
@@ -216,6 +223,61 @@ namespace LAPxv8
 
                 return prompt.ShowDialog() == DialogResult.OK ? inputBox.Text.Trim() : "";
             }
+        }
+        private string PromptForSessionTag()
+        {
+            List<string> existingTags = GetExistingSessionTags();
+            using (Form prompt = new Form())
+            {
+                prompt.Width = 400;
+                prompt.Height = 200;
+                prompt.Text = "Enter Session Tag";
+                prompt.StartPosition = FormStartPosition.CenterScreen;
+
+                Label label = new Label() { Left = 20, Top = 20, Text = "Select or enter a session tag:" };
+                ComboBox tagDropdown = new ComboBox() { Left = 20, Top = 50, Width = 340, DropDownStyle = ComboBoxStyle.DropDown };
+                tagDropdown.Items.AddRange(existingTags.ToArray());
+
+                Button confirmation = new Button() { Text = "OK", Left = 150, Width = 100, Top = 100, DialogResult = DialogResult.OK };
+
+                prompt.Controls.Add(label);
+                prompt.Controls.Add(tagDropdown);
+                prompt.Controls.Add(confirmation);
+                prompt.AcceptButton = confirmation;
+
+                return prompt.ShowDialog() == DialogResult.OK ? tagDropdown.Text.Trim() : "";
+            }
+        }
+        private List<string> GetExistingSessionTags()
+        {
+            List<string> tags = new List<string>();
+
+            if (Directory.Exists(sessionFolder))
+            {
+                var sessionFiles = Directory.GetFiles(sessionFolder, "*.json");
+                foreach (var file in sessionFiles)
+                {
+                    try
+                    {
+                        string content = File.ReadAllText(file);
+                        JObject sessionJson = JObject.Parse(content);
+                        if (sessionJson.ContainsKey("Tag") && sessionJson["Tag"] != null)
+                        {
+                            string tag = sessionJson["Tag"].ToString();
+                            if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag))
+                            {
+                                tags.Add(tag);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.AppendLog($"⚠ WARNING: Failed to read session tag from {file}: {ex.Message}");
+                    }
+                }
+            }
+
+            return tags;
         }
 
         private void SaveSession(object sessionData, string title)
