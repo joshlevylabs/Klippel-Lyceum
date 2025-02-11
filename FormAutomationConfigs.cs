@@ -23,7 +23,6 @@ namespace LAPxv8
         private string accessToken; // ✅ Added for API authentication
         private static readonly HttpClient client = new HttpClient(); // ✅ Fix for missing `client`
 
-
         private TextBox titleFormatBox;
         private ListBox globalPropertiesList;
         private string SelectedGroupId { get; set; }
@@ -37,6 +36,12 @@ namespace LAPxv8
         private RunAPscript runAPscript;
         private Dictionary<string, TextBox> inputValueBoxes; // Stores textboxes for editing default values
         private Panel inputPanel;
+        // ✅ Declare checkboxes as class-level variables so other methods can access them
+        private CheckBox chkExtractData;
+        private CheckBox chkSaveSession;
+        private CheckBox chkUploadToLyceum;
+
+        private bool skipCreateSession = false;
 
         public FormAutomationConfigs(string accessToken, APx500 apxInstance, Dictionary<string, string> globalProperties = null)
     : base(false, BaseForm.GetAccessToken())
@@ -67,6 +72,59 @@ namespace LAPxv8
             {
                 LogManager.AppendLog($"❌ ERROR in FormAutomationConfigs Constructor: {ex.Message}");
             }
+        }
+        public static class AutomationConfigManager
+        {
+            private static readonly string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LAPxv8", "config.json");
+            private static readonly object fileLock = new object(); // Ensures thread safety
+
+            public static JObject LoadConfig()
+            {
+                lock (fileLock) // Prevents multiple threads from reading at the same time
+                {
+                    try
+                    {
+                        if (File.Exists(configFilePath))
+                        {
+                            string json = File.ReadAllText(configFilePath);
+                            return JObject.Parse(json);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.AppendLog($"❌ ERROR loading automation config: {ex.Message}");
+                    }
+                    return new JObject(); // Return empty JSON object if there's an error
+                }
+            }
+
+            public static void SaveConfig(JObject newConfig)
+            {
+                lock (fileLock)
+                {
+                    try
+                    {
+                        JObject existingConfig = LoadConfig();
+
+                        // ✅ Merge new values while keeping old ones
+                        foreach (var property in newConfig.Properties())
+                        {
+                            existingConfig[property.Name] = property.Value;
+                        }
+
+                        Directory.CreateDirectory(Path.GetDirectoryName(configFilePath));
+                        File.WriteAllText(configFilePath, existingConfig.ToString(Formatting.Indented));
+
+                        LogManager.AppendLog($"✅ Updated automation settings: {existingConfig}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.AppendLog($"❌ ERROR saving automation config: {ex.Message}");
+                    }
+                }
+            }
+
+
         }
 
         private void InitializeUI()
@@ -114,7 +172,7 @@ namespace LAPxv8
             unitMappingTab.Controls.Add(CreateUnitMappingsPanel());
 
             // ✅ Run Script Tab
-            TabPage runScriptTab = new TabPage("Run Script")
+            TabPage runScriptTab = new TabPage("Run APx Sequence")
             {
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White,
@@ -149,8 +207,8 @@ namespace LAPxv8
                 Padding = new Padding(10)
             };
 
-            // ✅ Checkbox 1: Extract Data
-            CheckBox chkExtractData = new CheckBox
+            // ✅ Initialize the checkboxes as class-level fields
+            chkExtractData = new CheckBox
             {
                 Text = "Automatically extract data after sequence is complete.",
                 Left = 10,
@@ -159,8 +217,7 @@ namespace LAPxv8
                 AutoSize = true
             };
 
-            // ✅ Checkbox 2: Save Session (Dependent on Checkbox 1)
-            CheckBox chkSaveSession = new CheckBox
+            chkSaveSession = new CheckBox
             {
                 Text = "Automatically save data as session.",
                 Left = 10,
@@ -170,8 +227,7 @@ namespace LAPxv8
                 Enabled = false
             };
 
-            // ✅ Checkbox 3: Upload to Lyceum (Dependent on Checkbox 1 & 2)
-            CheckBox chkUploadToLyceum = new CheckBox
+            chkUploadToLyceum = new CheckBox
             {
                 Text = "Automatically upload data to Lyceum.",
                 Left = 10,
@@ -224,10 +280,10 @@ namespace LAPxv8
                 }
             };
 
-            // ✅ Adjust Checkbox Positions
-            chkExtractData.Location = new Point(10, 10);
-            chkSaveSession.Location = new Point(10, chkExtractData.Bottom + 10);
-            chkUploadToLyceum.Location = new Point(10, chkSaveSession.Bottom + 10);
+            // ✅ Add the checkboxes to the checkbox panel
+            checkboxPanel.Controls.Add(chkExtractData);
+            checkboxPanel.Controls.Add(chkSaveSession);
+            checkboxPanel.Controls.Add(chkUploadToLyceum);
 
             // ✅ Button: Log Pre-Sequence Steps
             Button logPreSequenceButton = new Button
@@ -272,13 +328,22 @@ namespace LAPxv8
             // ✅ Add the panel to the tab
             runScriptTab.Controls.Add(runScriptPanel);
 
+            // ✅ New Tab for Session Tags
+            TabPage tagTab = new TabPage("Session Tag")
+            {
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White,
+                AutoScroll = true
+            };
+            tagTab.Controls.Add(CreateTagConfigurationPanel());
+
 
             // ✅ Add all tabs to the tabControl
             tabControl.TabPages.Add(titleTab);
             tabControl.TabPages.Add(groupTab);
             tabControl.TabPages.Add(unitMappingTab);
             tabControl.TabPages.Add(runScriptTab);
-
+            tabControl.TabPages.Add(tagTab);
 
             // ✅ Add the tab control to the form
             Controls.Add(tabControl);
@@ -405,54 +470,31 @@ namespace LAPxv8
             return constructedTitle;
         }
 
-        private void SaveTitleFormat()
-        {
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(configFilePath));
-                var config = new JObject
-                {
-                    ["TitleFormat"] = TitleFormat,
-                    ["SelectedGroupId"] = SelectedGroupId ?? "",
-                    ["SelectedGroupName"] = SelectedGroupName ?? ""
-                };
-
-                File.WriteAllText(configFilePath, config.ToString(Formatting.Indented));
-                LogManager.AppendLog($"✅ Saved Title Format: {TitleFormat}");
-                LogManager.AppendLog($"✅ Saved Selected Group: {SelectedGroupName} (ID: {SelectedGroupId})");
-            }
-            catch (Exception ex)
-            {
-                LogManager.AppendLog($"❌ ERROR saving title format: {ex.Message}");
-            }
-        }
-
         private void LoadTitleFormat()
         {
-            if (File.Exists(configFilePath))
-            {
-                string json = File.ReadAllText(configFilePath);
-                var config = JsonConvert.DeserializeObject<JObject>(json);
-                TitleFormat = config["TitleFormat"]?.ToString() ?? "";
-                SelectedGroupId = config["SelectedGroupId"]?.ToString() ?? "";
-                SelectedGroupName = config["SelectedGroupName"]?.ToString() ?? "";
+            JObject config = AutomationConfigManager.LoadConfig();
+            TitleFormat = config["TitleFormat"]?.ToString() ?? "";
+            SelectedGroupId = config["SelectedGroupId"]?.ToString() ?? "";
+            SelectedGroupName = config["SelectedGroupName"]?.ToString() ?? "";
 
-                titleFormatBox.Text = TitleFormat;
+            titleFormatBox.Text = TitleFormat;
+            defaultGroupLabel.Text = !string.IsNullOrEmpty(SelectedGroupName) ? $"📌 {SelectedGroupName}" : "📌 No Default Group Selected";
+            defaultGroupLabel.ForeColor = !string.IsNullOrEmpty(SelectedGroupName) ? Color.LimeGreen : Color.Gray;
 
-                if (!string.IsNullOrEmpty(SelectedGroupName))
-                {
-                    defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
-                    defaultGroupLabel.ForeColor = Color.LimeGreen;
-                }
-                else
-                {
-                    defaultGroupLabel.Text = "📌 No Default Group Selected";
-                    defaultGroupLabel.ForeColor = Color.Gray;
-                }
+            LogManager.AppendLog($"✅ Loaded Automation Configs: TitleFormat='{TitleFormat}', Group='{SelectedGroupName}'");
+        }
 
-                LogManager.AppendLog($"✅ Loaded Title Format: {TitleFormat}");
-                LogManager.AppendLog($"✅ Loaded Selected Group: {SelectedGroupName} (ID: {SelectedGroupId})");
-            }
+        private void SaveTitleFormat()
+        {
+            JObject config = AutomationConfigManager.LoadConfig();
+
+            LogManager.AppendLog($"🔍 Saving Title Format. Old Value: '{config["TitleFormat"]}' New Value: '{TitleFormat}'");
+
+            config["TitleFormat"] = TitleFormat;
+            config["SelectedGroupId"] = SelectedGroupId ?? "";
+            config["SelectedGroupName"] = SelectedGroupName ?? "";
+
+            AutomationConfigManager.SaveConfig(config);
         }
 
         private void UpdateGroupSelectionUI()
@@ -791,22 +833,14 @@ namespace LAPxv8
                 SelectedGroupId = selectedGroup["id"].ToString();
                 SelectedGroupName = selectedGroup["name"].ToString();
 
-                LogManager.AppendLog($"✅ Selected Lyceum Group: {SelectedGroupName} (ID: {SelectedGroupId})");
+                JObject config = AutomationConfigManager.LoadConfig();
 
-                var config = new JObject
-                {
-                    ["TitleFormat"] = TitleFormat,
-                    ["SelectedGroupId"] = SelectedGroupId,
-                    ["SelectedGroupName"] = SelectedGroupName
-                };
+                LogManager.AppendLog($"🔍 Saving Group Selection. Old Value: '{config["SelectedGroupName"]}' New Value: '{SelectedGroupName}'");
 
-                File.WriteAllText(configFilePath, config.ToString(Newtonsoft.Json.Formatting.Indented));
+                config["SelectedGroupId"] = SelectedGroupId;
+                config["SelectedGroupName"] = SelectedGroupName;
 
-                // 🔥 Update the label to show the newly selected group
-                defaultGroupLabel.Text = $"📌 {SelectedGroupName}";
-                defaultGroupLabel.ForeColor = Color.LimeGreen;
-
-                MessageBox.Show($"Group Selected: {SelectedGroupName}", "Group Selection", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+                AutomationConfigManager.SaveConfig(config);
             }
             catch (Exception ex)
             {
@@ -1081,6 +1115,9 @@ namespace LAPxv8
                 inputPanel.Controls.Clear();
                 inputValueBoxes = new Dictionary<string, TextBox>();
 
+                JObject config = AutomationConfigManager.LoadConfig();
+                JObject savedValues = config["DefaultTestVariables"] as JObject ?? new JObject();
+
                 // Retrieve all input labels and default values
                 var inputData = runAPscript.GetPromptStepInputs();
 
@@ -1095,7 +1132,7 @@ namespace LAPxv8
                 foreach (var entry in inputData)
                 {
                     string inputLabel = entry.Key;
-                    string defaultValue = entry.Value;
+                    string defaultValue = savedValues.ContainsKey(inputLabel) ? savedValues[inputLabel].ToString() : entry.Value;
 
                     // ✅ Label: Input Name
                     Label label = new Label
@@ -1125,7 +1162,12 @@ namespace LAPxv8
                     yOffset += 35;
                 }
 
-                LogManager.AppendLog("✅ Inputs displayed successfully.");
+                // ✅ Load checkbox states from config
+                chkExtractData.Checked = config["ExtractDataChecked"]?.ToObject<bool>() ?? false;
+                chkSaveSession.Checked = config["SaveSessionChecked"]?.ToObject<bool>() ?? false;
+                chkUploadToLyceum.Checked = config["UploadToLyceumChecked"]?.ToObject<bool>() ?? false;
+
+                LogManager.AppendLog("✅ Inputs and checkbox states loaded successfully.");
             }
             catch (Exception ex)
             {
@@ -1143,14 +1185,29 @@ namespace LAPxv8
                     return;
                 }
 
-                // ✅ Collect edited values
+                JObject config = AutomationConfigManager.LoadConfig();
+                JObject defaultValuesJson = new JObject();
+
+                // ✅ Collect all updated values
                 Dictionary<string, string> updatedValues = inputValueBoxes.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Text);
+
+                foreach (var kvp in updatedValues)
+                {
+                    defaultValuesJson[kvp.Key] = kvp.Value;
+                }
+
+                config["DefaultTestVariables"] = defaultValuesJson;
+                config["ExtractDataChecked"] = chkExtractData.Checked;
+                config["SaveSessionChecked"] = chkSaveSession.Checked;
+                config["UploadToLyceumChecked"] = chkUploadToLyceum.Checked;
+
+                AutomationConfigManager.SaveConfig(config);
 
                 // ✅ Update values in APx
                 runAPscript.SetDefaultValues(updatedValues);
-                MessageBox.Show("Default values updated successfully!", "Success", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+                MessageBox.Show("Default values and checkboxes updated successfully!", "Success", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
 
-                LogManager.AppendLog("✅ Default values updated successfully in APx.");
+                LogManager.AppendLog("✅ Default values and checkbox states updated in APx.");
             }
             catch (Exception ex)
             {
@@ -1158,6 +1215,125 @@ namespace LAPxv8
             }
         }
 
+        private Panel CreateTagConfigurationPanel()
+        {
+            Panel panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(45, 45, 48) };
+
+            Label label = new Label
+            {
+                Text = "Select or enter a default session tag:",
+                AutoSize = true,
+                Top = 10,
+                Left = 10,
+                ForeColor = Color.White
+            };
+
+            ComboBox tagDropdown = new ComboBox
+            {
+                Top = 40,
+                Left = 10,
+                Width = 340,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = Color.White
+            };
+
+            tagDropdown.Items.AddRange(GetExistingSessionTags().ToArray());
+
+            Button saveButton = new Button
+            {
+                Text = "Save Default Tag",
+                Top = 100,
+                Left = 10,
+                Width = 200,
+                Height = 40,
+                BackColor = Color.FromArgb(75, 175, 75),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            saveButton.Click += (sender, e) =>
+            {
+                SaveDefaultTag(tagDropdown.Text);
+                MessageBox.Show($"Default session tag set to: {tagDropdown.Text}", "Success", MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+            };
+
+            Label defaultTagLabel = new Label
+            {
+                Text = "📌 No Default Tag Selected",
+                AutoSize = true,
+                ForeColor = Color.Gray,
+                Top = 150,
+                Left = 10
+            };
+
+            string savedTag = GetDefaultTagFromConfig();
+            if (!string.IsNullOrWhiteSpace(savedTag))
+            {
+                defaultTagLabel.Text = $"📌 Default Tag: {savedTag}";
+                defaultTagLabel.ForeColor = Color.LimeGreen;
+            }
+
+            panel.Controls.Add(label);
+            panel.Controls.Add(tagDropdown);
+            panel.Controls.Add(saveButton);
+            panel.Controls.Add(defaultTagLabel);
+
+            return panel;
+        }
+
+        private void SaveDefaultTag(string tag)
+        {
+            JObject config = AutomationConfigManager.LoadConfig();
+
+            LogManager.AppendLog($"🔍 Saving Default Tag. Old Value: '{config["DefaultTag"]}' New Value: '{tag}'");
+
+            config["DefaultTag"] = tag;
+
+            AutomationConfigManager.SaveConfig(config);
+        }
+
+        private List<string> GetExistingSessionTags()
+        {
+            List<string> existingTags = new List<string>();
+
+            try
+            {
+                if (File.Exists(configFilePath))
+                {
+                    string json = File.ReadAllText(configFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+
+                    if (config["SessionTags"] != null)
+                    {
+                        existingTags = config["SessionTags"].ToObject<List<string>>() ?? new List<string>();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"❌ ERROR retrieving existing session tags: {ex.Message}");
+            }
+
+            return existingTags;
+        }
+
+        private string GetDefaultTagFromConfig()
+        {
+            if (File.Exists(configFilePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(configFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+                    return config["DefaultTag"]?.ToString() ?? "";
+                }
+                catch (Exception ex)
+                {
+                    LogManager.AppendLog($"❌ ERROR retrieving default tag from config: {ex.Message}");
+                }
+            }
+            return "";
+        }
     }
 
     public interface IGlobalPropertiesProvider

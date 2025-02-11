@@ -118,7 +118,7 @@ namespace LAPxv8
             // APx500 Menu
             ToolStripMenuItem apx500Menu = new ToolStripMenuItem("AP Controls");
 
-            ToolStripMenuItem runScriptMenuItem = new ToolStripMenuItem("Run Script");
+            ToolStripMenuItem runScriptMenuItem = new ToolStripMenuItem("Run APx Sequence");
             runScriptMenuItem.Click += RunScriptButton_Click;
             apx500Menu.DropDownItems.Add(runScriptMenuItem);
 

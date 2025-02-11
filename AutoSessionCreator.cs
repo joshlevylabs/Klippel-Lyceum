@@ -106,8 +106,13 @@ namespace LAPxv8
                 resolvedTitle = SanitizeFileName(resolvedTitle);
                 LogManager.AppendLog($"[DEBUG] AutoSessionCreator: Sanitized session title -> {resolvedTitle}");
 
-                // ✅ Prompt the user for a session tag
-                string sessionTag = PromptForSessionTag();
+                // ✅ Retrieve default tag from configuration
+                string sessionTag = GetDefaultTagFromConfig();
+                if (string.IsNullOrWhiteSpace(sessionTag))
+                {
+                    sessionTag = PromptForSessionTag();
+                }
+
                 this.SessionTitle = resolvedTitle;
                 this.SessionTag = sessionTag;
 
@@ -223,6 +228,23 @@ namespace LAPxv8
 
                 return prompt.ShowDialog() == DialogResult.OK ? inputBox.Text.Trim() : "";
             }
+        }
+        private string GetDefaultTagFromConfig()
+        {
+            if (File.Exists(configFilePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(configFilePath);
+                    var config = JsonConvert.DeserializeObject<JObject>(json);
+                    return config["DefaultTag"]?.ToString() ?? "";
+                }
+                catch (Exception ex)
+                {
+                    LogManager.AppendLog($"❌ ERROR retrieving default tag from config: {ex.Message}");
+                }
+            }
+            return "";
         }
         private string PromptForSessionTag()
         {

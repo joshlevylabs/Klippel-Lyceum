@@ -31,11 +31,15 @@ namespace LAPxv8
                     formAP8.RunGetCheckedData();
                 }
 
-                // Step 2: If saveSession is true, run CreateSessionMenuItem_Click
-                if (saveSession)
+                // Step 2: If saveSession is true and uploadToLyceum is false, run CreateSessionMenuItem_Click
+                if (saveSession && !uploadToLyceum) // 🚨 SKIP CreateSession IF Upload to Lyceum is selected
                 {
                     LogManager.AppendLog("💾 Running 'CreateSessionMenuItem_Click'...");
                     formAP8.RunCreateSession();
+                }
+                else if (uploadToLyceum)
+                {
+                    LogManager.AppendLog("⏩ Skipping 'CreateSessionMenuItem_Click' because Upload to Lyceum is selected.");
                 }
 
                 // Step 3: If uploadToLyceum is true, run UploadToLyceumMenuItem_Click
