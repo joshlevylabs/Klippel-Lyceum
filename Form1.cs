@@ -8,9 +8,9 @@ using Newtonsoft.Json;
 using System.Text;
 using System.Security.Cryptography;
 using System.IO;
-using static LAPxv8.FormAudioPrecision8;
+using static LyceumKlippel.LYKHome;
 
-namespace LAPxv8
+namespace LyceumKlippel
 {
     public partial class Form1 : BaseForm
     {
@@ -341,7 +341,7 @@ namespace LAPxv8
         private void OpenFormAudioPrecision()
         {
             this.Hide();
-            using (var formAudioPrecision = new FormAudioPrecision8(accessToken, refreshToken))
+            using (var formAudioPrecision = new LYKHome(accessToken, refreshToken))
             {
                 formAudioPrecision.ShowDialog();
             }

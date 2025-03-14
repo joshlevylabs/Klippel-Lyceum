@@ -1,4 +1,4 @@
-﻿namespace LAPxv8
+﻿namespace LyceumKlippel
 {
     partial class BaseForm
     {

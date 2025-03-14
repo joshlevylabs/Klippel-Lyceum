@@ -5,10 +5,10 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using static LAPxv8.FormAudioPrecision8;
+using static LyceumKlippel.LYKHome;
 
 
-namespace LAPxv8
+namespace LyceumKlippel
 {
     public partial class BaseForm : Form
     {

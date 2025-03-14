@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace LAPxv8
+namespace LyceumKlippel
 {
     public partial class FormAboutLAPx : BaseForm
     {

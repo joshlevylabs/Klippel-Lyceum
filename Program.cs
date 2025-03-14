@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace LAPxv8._0
+namespace LyceumKlippel
 {
     internal static class Program
     {
