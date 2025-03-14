@@ -46,39 +46,14 @@
 
   <!-- Compile Source Files -->
   <ItemGroup>
-    <Compile Include="Aristotle.cs" />
-    <Compile Include="Aristotle.Designer.cs" />
-    <Compile Include="AutoSessionCreator.cs" />
     <Compile Include="BaseForm.cs" />
     <Compile Include="BaseForm.Designer.cs" />
-    <Compile Include="Cryptography.cs" />
     <Compile Include="Form1.cs" />
     <Compile Include="Form1.Designer.cs" />
     <Compile Include="FormAboutLAPx.cs.cs" />
-    <Compile Include="FormAPLimitEditor.cs" />
-    <Compile Include="FormAPLimitEditor.Designer.cs" />
     <Compile Include="FormAudioPrecision8.cs" />
     <Compile Include="FormAudioPrecision8.Designer.cs" />
-    <Compile Include="FormAutomationConfigs.cs" />
-    <Compile Include="FormAutomationConfigs.Designer.cs" />
-    <Compile Include="FormGridViewResults.cs" />
-    <Compile Include="FormGridViewResults.Designer.cs" />
-    <Compile Include="FormLyceumDataUpload.cs" />
-    <Compile Include="FormLyceumDataUpload.Designer.cs" />
-    <Compile Include="FormLyceumDataViewer.cs" />
-    <Compile Include="FormLyceumDataViewer.Designer.cs" />
-    <Compile Include="FormLyceumLimitImport.cs" />
-    <Compile Include="FormLyceumLimitImport.Designer.cs" />
-    <Compile Include="FormPinboard.cs" />
-    <Compile Include="FormPinboard.Designer.cs" />
-    <Compile Include="FormSessionManager.cs" />
-    <Compile Include="FormSessionManager.Designer.cs" />
-    <Compile Include="FormSignalPathComparison.cs" />
-    <Compile Include="FormTestResultsGrid.cs" />
-    <Compile Include="FormTestResultsGrid.Designer.cs" />
-    <Compile Include="LoadLimitsv8.cs" />
     <Compile Include="Program.cs" />
-    <Compile Include="RunAPscript.cs" />
   </ItemGroup>
 
   <!-- Embedded Resources -->
