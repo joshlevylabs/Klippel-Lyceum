@@ -37,7 +37,7 @@ namespace LyceumKlippel
             int verticalOffset = 30;
             int verticalSpacing = 50;
 
-            this.Text = "LAPx - Lyceum + APx500 Interface version 1.2";
+            this.Text = "Lyceum - Klippel + Interface version 1.2";
             this.Font = new Font("Segoe UI", 10);
             this.BackColor = Color.FromArgb(45, 45, 45); // Dark Mode background
             this.Size = new Size(450, 600); // Increased size to accommodate spacing
@@ -54,7 +54,7 @@ namespace LyceumKlippel
             // APx500 Compatibility Label
             Label compatibilityLabel = new Label
             {
-                Text = "Compatible with APx500 v8.0",
+                Text = "Compatible with Klippel dB Lab",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 AutoSize = true,

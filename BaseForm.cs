@@ -63,8 +63,14 @@ namespace LyceumKlippel
                     Padding = new Padding(0, 0, 0, 0)
                 };
 
-                // File menu with Logout option only
                 var fileMenu = new ToolStripMenuItem("File");
+
+
+                // Add "Logs" menu item
+                var logsMenuItem = new ToolStripMenuItem("Logs");
+                logsMenuItem.Click += LogsMenuItem_Click;
+                fileMenu.DropDownItems.Add(logsMenuItem);
+
                 var logoutMenuItem = new ToolStripMenuItem("Logout");
                 logoutMenuItem.Click += LogoutMenuItem_Click;
                 fileMenu.DropDownItems.Add(logoutMenuItem);
@@ -81,7 +87,12 @@ namespace LyceumKlippel
             this.MouseMove += BaseForm_MouseMove;
             this.MouseUp += BaseForm_MouseUp;
         }
-        
+
+        private void LogsMenuItem_Click(object sender, EventArgs e)
+        {
+            LogManager.ShowLogWindow();
+        }
+
         private void LogoutMenuItem_Click(object sender, EventArgs e)
         {
             // Close all open forms

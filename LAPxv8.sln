@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LAPxv8", "LAPxv8.csproj", "{12060757-8177-4D4F-9878-D0519A056662}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LyceumKlippel", "LyceumKlippel.csproj", "{12060757-8177-4D4F-9878-D0519A056662}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
