@@ -171,68 +171,95 @@ namespace LyceumKlippel
 
         private void PopulateTreeViewWithWindowsAndCurves()
         {
-            if (database == null || currentQcModule == null)
+            if (database == null)
             {
-                LogManager.AppendLog("Database or QC module not initialized.");
+                LogManager.AppendLog("Database not initialized.");
                 return;
             }
 
             string dbName = Path.GetFileNameWithoutExtension(loadedFilePath);
-            TreeNode parentNode = new TreeNode(dbName);
-            treeViewDatabase.Nodes.Add(parentNode);
-            LogManager.AppendLog($"Added top-level database node: '{dbName}'");
-
-            HashSet<string> existingNodes = new HashSet<string>();
-            List<IKlQCMeasure> uncategorizedMeasures = new List<IKlQCMeasure>();
+            TreeNode rootNode = new TreeNode(dbName);
+            treeViewDatabase.Nodes.Add(rootNode);
+            LogManager.AppendLog($"Added root database node: '{dbName}'");
 
             try
             {
-                IKlModule module = (IKlModule)currentQcModule;
-                if (module != null)
+                // Assuming database has a property or method to access its folder structure
+                // For example, database.Folders could return top-level folders or modules
+                PopulateFolderNodes(rootNode, database);
+            }
+            catch (Exception ex)
+            {
+                LogManager.AppendLog($"Error populating TreeView: {ex.Message}");
+            }
+
+            rootNode.Expand();
+            LogManager.AppendLog("TreeView population completed");
+        }
+
+        private void PopulateFolderNodes(TreeNode parentNode, IKlDatabase db)
+        {
+            // Replace 'Folders' with the actual property/method of your database object
+            var folders = db.GetFolders(); // Hypothetical method to get folder structure
+            if (folders == null) return;
+
+            foreach (var folder in folders)
+            {
+                TreeNode folderNode = new TreeNode(folder.Name);
+                parentNode.Nodes.Add(folderNode);
+                LogManager.AppendLog($"Added folder node: '{folder.Name}'");
+
+                // Recursively populate subfolders
+                PopulateFolderNodes(folderNode, folder);
+
+                // Check if this folder contains a QC module
+                IKlModule qcModule = folder.GetQCModule(); // Hypothetical method to get QC module
+                if (qcModule != null)
                 {
-                    foreach (IKlWindow window in module.Results.Windows)
-                    {
-                        string windowName = window.Name;
-                        LogManager.AppendLog($"Result Window: {windowName}");
-                        TreeNode windowNode = new TreeNode(windowName);
-                        parentNode.Nodes.Add(windowNode);
+                    PopulateQCModuleNodes(folderNode, qcModule);
+                }
+            }
+        }
 
-                        foreach (IKlQCTask task in currentQcModule.Tasks)
+        private void PopulateQCModuleNodes(TreeNode parentNode, IKlModule module)
+        {
+            HashSet<string> existingNodes = new HashSet<string>();
+            List<IKlQCMeasure> uncategorizedMeasures = new List<IKlQCMeasure>();
+
+            foreach (IKlWindow window in module.Results.Windows)
+            {
+                string windowName = window.Name;
+                LogManager.AppendLog($"Result Window: {windowName}");
+                TreeNode windowNode = new TreeNode(windowName);
+                parentNode.Nodes.Add(windowNode);
+
+                foreach (IKlQCTask task in module.Tasks)
+                {
+                    foreach (IKlQCMeasure measure in task.Measures)
+                    {
+                        KlippelDataProcessor.MeasureInfo info = KlippelDataProcessor.GetMeasureInfo(measure.Name);
+                        if (info.Category == windowName)
                         {
-                            foreach (IKlQCMeasure measure in task.Measures)
-                            {
-                                KlippelDataProcessor.MeasureInfo info = KlippelDataProcessor.GetMeasureInfo(measure.Name);
-                                if (info.Category == windowName)
-                                {
-                                    KlippelDataProcessor.PopulateMeasureNodes(windowNode, measure, database, existingNodes);
-                                }
-                                else if (info.Category == "Uncategorized")
-                                {
-                                    uncategorizedMeasures.Add(measure);
-                                }
-                            }
+                            KlippelDataProcessor.PopulateMeasureNodes(windowNode, measure, database, existingNodes);
                         }
-                    }
-
-                    // Add Uncategorized node if there are uncategorized measures
-                    if (uncategorizedMeasures.Count > 0)
-                    {
-                        TreeNode uncategorizedNode = new TreeNode("Uncategorized");
-                        parentNode.Nodes.Add(uncategorizedNode);
-                        foreach (var measure in uncategorizedMeasures)
+                        else if (info.Category == "Uncategorized")
                         {
-                            KlippelDataProcessor.PopulateMeasureNodes(uncategorizedNode, measure, database, existingNodes);
+                            uncategorizedMeasures.Add(measure);
                         }
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                LogManager.AppendLog($"Error retrieving result windows: {ex.Message}");
-            }
 
-            parentNode.Expand();
-            LogManager.AppendLog("TreeView population completed");
+            // Add Uncategorized node if there are uncategorized measures
+            if (uncategorizedMeasures.Count > 0)
+            {
+                TreeNode uncategorizedNode = new TreeNode("Uncategorized");
+                parentNode.Nodes.Add(uncategorizedNode);
+                foreach (var measure in uncategorizedMeasures)
+                {
+                    KlippelDataProcessor.PopulateMeasureNodes(uncategorizedNode, measure, database, existingNodes);
+                }
+            }
         }
 
         // Helper method to find or create category nodes
