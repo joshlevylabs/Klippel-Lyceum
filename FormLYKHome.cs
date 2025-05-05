@@ -184,9 +184,8 @@ namespace LyceumKlippel
 
             try
             {
-                // Assuming database has a property or method to access its folder structure
-                // For example, database.Folders could return top-level folders or modules
-                PopulateFolderNodes(rootNode, database);
+                KlDBNode rootDbNode = database.Root; // Get the root node
+                PopulateFolderNodes(rootNode, rootDbNode);
             }
             catch (Exception ex)
             {
@@ -197,68 +196,77 @@ namespace LyceumKlippel
             LogManager.AppendLog("TreeView population completed");
         }
 
-        private void PopulateFolderNodes(TreeNode parentNode, IKlDatabase db)
+        private void PopulateFolderNodes(TreeNode parentNode, KlDBNode dbNode)
         {
-            // Replace 'Folders' with the actual property/method of your database object
-            var folders = db.GetFolders(); // Hypothetical method to get folder structure
-            if (folders == null) return;
+            // Add current node to TreeView
+            TreeNode currentNode = new TreeNode(dbNode.Name);
+            parentNode.Nodes.Add(currentNode);
+            LogManager.AppendLog($"Added folder node: '{dbNode.Name}'");
 
-            foreach (var folder in folders)
+            // Access the collection of child nodes using the Children property
+            IKlDBNodeCollection children = dbNode.Children;
+
+            // Iterate over the child nodes
+            foreach (IKlDBNode childNode in children)
             {
-                TreeNode folderNode = new TreeNode(folder.Name);
-                parentNode.Nodes.Add(folderNode);
-                LogManager.AppendLog($"Added folder node: '{folder.Name}'");
+                PopulateFolderNodes(currentNode, (KlDBNode)childNode);
+            }
 
-                // Recursively populate subfolders
-                PopulateFolderNodes(folderNode, folder);
-
-                // Check if this folder contains a QC module
-                IKlModule qcModule = folder.GetQCModule(); // Hypothetical method to get QC module
+            // Check if this node contains a QC module
+            if (dbNode.TypeID == "{63AB89D5-AE84-11D5-B6D0-525405F7AE84}") // QC module type ID
+            {
+                IKlModuleQC qcModule = (IKlModuleQC)dbNode.LoadInstance();
                 if (qcModule != null)
                 {
-                    PopulateQCModuleNodes(folderNode, qcModule);
+                    PopulateQCModuleNodes(currentNode, qcModule);
                 }
             }
         }
-
         private void PopulateQCModuleNodes(TreeNode parentNode, IKlModule module)
         {
-            HashSet<string> existingNodes = new HashSet<string>();
-            List<IKlQCMeasure> uncategorizedMeasures = new List<IKlQCMeasure>();
-
-            foreach (IKlWindow window in module.Results.Windows)
+            if (module is IKlModuleQC qcModule)
             {
-                string windowName = window.Name;
-                LogManager.AppendLog($"Result Window: {windowName}");
-                TreeNode windowNode = new TreeNode(windowName);
-                parentNode.Nodes.Add(windowNode);
+                HashSet<string> existingNodes = new HashSet<string>();
+                List<IKlQCMeasure> uncategorizedMeasures = new List<IKlQCMeasure>();
 
-                foreach (IKlQCTask task in module.Tasks)
+                foreach (IKlWindow window in qcModule.Results.Windows)
                 {
-                    foreach (IKlQCMeasure measure in task.Measures)
+                    string windowName = window.Name;
+                    LogManager.AppendLog($"Result Window: {windowName}");
+                    TreeNode windowNode = new TreeNode(windowName);
+                    parentNode.Nodes.Add(windowNode);
+
+                    foreach (IKlQCTask task in qcModule.Tasks)
                     {
-                        KlippelDataProcessor.MeasureInfo info = KlippelDataProcessor.GetMeasureInfo(measure.Name);
-                        if (info.Category == windowName)
+                        foreach (IKlQCMeasure measure in task.Measures)
                         {
-                            KlippelDataProcessor.PopulateMeasureNodes(windowNode, measure, database, existingNodes);
-                        }
-                        else if (info.Category == "Uncategorized")
-                        {
-                            uncategorizedMeasures.Add(measure);
+                            KlippelDataProcessor.MeasureInfo info = KlippelDataProcessor.GetMeasureInfo(measure.Name);
+                            if (info.Category == windowName)
+                            {
+                                KlippelDataProcessor.PopulateMeasureNodes(windowNode, measure, database, existingNodes);
+                            }
+                            else if (info.Category == "Uncategorized")
+                            {
+                                uncategorizedMeasures.Add(measure);
+                            }
                         }
                     }
                 }
-            }
 
-            // Add Uncategorized node if there are uncategorized measures
-            if (uncategorizedMeasures.Count > 0)
-            {
-                TreeNode uncategorizedNode = new TreeNode("Uncategorized");
-                parentNode.Nodes.Add(uncategorizedNode);
-                foreach (var measure in uncategorizedMeasures)
+                // Add Uncategorized node if there are uncategorized measures
+                if (uncategorizedMeasures.Count > 0)
                 {
-                    KlippelDataProcessor.PopulateMeasureNodes(uncategorizedNode, measure, database, existingNodes);
+                    TreeNode uncategorizedNode = new TreeNode("Uncategorized");
+                    parentNode.Nodes.Add(uncategorizedNode);
+                    foreach (var measure in uncategorizedMeasures)
+                    {
+                        KlippelDataProcessor.PopulateMeasureNodes(uncategorizedNode, measure, database, existingNodes);
+                    }
                 }
+            }
+            else
+            {
+                LogManager.AppendLog("Module is not a QC module.");
             }
         }
 
